@@ -57,7 +57,7 @@ async def on_message(message):
     global guild_data
     if message.author == bot.user:
         return
-    elif message.channel.id == guild_data[message.guild.id]["counting_channel"]:
+    elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and message.content[0].isnumeric():
         guild_id = message.guild.id
         current_count = guild_data[guild_id]["current_count"]
         previous_user = guild_data[guild_id]["previous_user"]
