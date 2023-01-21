@@ -57,7 +57,7 @@ async def on_message(message):
     global guild_data
     if message.author == bot.user:
         return
-    elif message.content.isnumeric() and message.channel.id == guild_data[message.guild.id]["counting_channel"]:
+    elif message.channel.id == guild_data[message.guild.id]["counting_channel"]:
         guild_id = message.guild.id
         current_count = guild_data[guild_id]["current_count"]
         previous_user = guild_data[guild_id]["previous_user"]
@@ -72,8 +72,8 @@ async def on_message(message):
                 await handle_incorrect_count(guild_id, message, current_count, previous_user)
         else:
             await handle_incorrect_count(guild_id, message, current_count, previous_user, True) 
-    with open("guild_data.json", "w") as f:
-        json.dump(guild_data, f)
+        with open("guild_data.json", "w") as f:
+            json.dump(guild_data, f)
 
 async def handle_incorrect_count(guild_id, message, current_count, previous_user, is_repeated=False):
     prefix_text = f"What a beta move by {message.author.mention}."
