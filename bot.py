@@ -67,7 +67,7 @@ async def on_message(message):
                 previous_user = message.author.id
                 guild_data[guild_id]["current_count"] = current_count
                 guild_data[guild_id]["previous_user"] = previous_user
-                await message.add_reaction('👍')
+                await message.add_reaction("🙂")
             else:
                 await handle_incorrect_count(guild_id, message, current_count, previous_user)
         else:
@@ -78,7 +78,7 @@ async def on_message(message):
 async def handle_incorrect_count(guild_id, message, current_count, previous_user, is_repeated=False):
     prefix_text = f"What a beta move by {message.author.mention}."
     suffix_text = "Only gigachads should be in charge of counting. Please start again from 1."
-    await message.add_reaction('👎')
+    await message.add_reaction("💀")
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
     if is_repeated:
