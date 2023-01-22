@@ -32,12 +32,13 @@ def init_guild_data():
     except FileNotFoundError:
         with open("guild_data.json", "w") as f:
             json.dump({}, f)
+        print("guild_data.json didn't exist and was created.")
     except json.decoder.JSONDecodeError:
-        raise Exception("There was an error decoding guild_data.json")
+        raise Exception("There was an error decoding guild_data.json.")
     finally:
         for guild in bot.guilds:
             if guild.id not in guild_data: 
-                guild_data[guild.id] = {"current_count": 0, "highest_count:": 0, "previous_user": None, "counting_channel": None}
+                guild_data[guild.id] = {"current_count": 0, "highest_count": 0, "previous_user": None, "counting_channel": None}
         with open("guild_data.json", "w") as f:
             json.dump(guild_data, f)
 
@@ -61,29 +62,42 @@ async def on_message(message):
         guild_id = message.guild.id
         current_count = guild_data[guild_id]["current_count"]
         previous_user = guild_data[guild_id]["previous_user"]
+        highest_count = guild_data[guild_id]["highest_count"]
         if message.author.id != previous_user:
             if message.content.startswith(str(current_count + 1)):
                 current_count += 1
                 previous_user = message.author.id
                 guild_data[guild_id]["current_count"] = current_count
                 guild_data[guild_id]["previous_user"] = previous_user
+                if guild_data[guild_id]["highest_count"] < current_count:
+                    guild_data[guild_id]["highest_count"] = current_count
                 await message.add_reaction("🙂")
             else:
-                await handle_incorrect_count(guild_id, message, current_count, previous_user)
+                await handle_incorrect_count(guild_id, message, current_count, highest_count)
         else:
-            await handle_incorrect_count(guild_id, message, current_count, previous_user, True) 
+            await handle_incorrect_count(guild_id, message, current_count, highest_count, True) 
         with open("guild_data.json", "w") as f:
             json.dump(guild_data, f)
 
-async def handle_incorrect_count(guild_id, message, current_count, previous_user, is_repeated=False):
-    prefix_text = f"What a beta move by {message.author.mention}."
-    suffix_text = "Only gigachads should be in charge of counting. Please start again from 1."
-    await message.add_reaction("💀")
+async def handle_incorrect_count(guild_id, message, current_count, highest_count, is_repeated=False):
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
+    await message.add_reaction("💀")
+    await message.add_reaction("⚠️")
+    await message.add_reaction("🇳")
+    await message.add_reaction("🇴")
+    await message.add_reaction("❗")
+    await message.add_reaction("☠️")
+    prefix_text = f"What a beta move by {message.author.mention}."
+    suffix_text = "Only gigachads should be in charge of counting. Please start again from 1."
     if is_repeated:
-        await message.channel.send(f"{prefix_text} A user cannot count twice in a row. {suffix_text}")
+        full_text= f"A user cannot count twice in a row. {suffix_text}"
     else:
-        await message.channel.send(f"{prefix_text} That's not the right number, it should have been {current_count + 1}. {suffix_text}")
+        full_text = f"{prefix_text} That's not the right number, it should have been {current_count + 1}. {suffix_text}"
+    if highest_count == current_count:
+        full_text += f" The high score is now {highest_count}."
+    else:
+        full_text += f" The previous high score was {highest_count}."
+    await message.channel.send(full_text)
 
 bot.run(TOKEN)
