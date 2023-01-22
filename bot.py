@@ -1,8 +1,7 @@
 import os
 import discord
-#from discord import app_commands
 from discord.ext import commands
-from datetime import date, datetime
+from datetime import datetime
 import json
 from dotenv import load_dotenv
 
@@ -15,6 +14,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 class DateTimeEncoder(json.JSONEncoder):
+    """Extends the JSONEncoder class to serialize unserializable data into strings."""
     def default(self, o):
         if isinstance(o, datetime):
             return o.isoformat()
@@ -22,6 +22,7 @@ class DateTimeEncoder(json.JSONEncoder):
 
 @bot.event
 async def on_ready():
+    """Discord event that gets triggered once the connection has been established."""
     try:
         synced = await bot.tree.sync()
     except Exception as e:
@@ -31,6 +32,7 @@ async def on_ready():
         await check_for_missed_counts(guild.id)
 
 def init_guild_data():
+    """Initializes the guild_data.json file, or loads it into the bot."""
     global guild_data
     try:
         with open("guild_data.json", "r") as f:
@@ -59,14 +61,16 @@ def init_guild_data():
             json.dump(guild_data, f, cls=DateTimeEncoder)
 
 async def check_for_missed_counts(guild_id):
+    """Checks for up to 100 messages of counts that have not been counted because the bot was not running."""
     last_message = guild_data[guild_id]["previous_message"]
     if last_message != None:
         counting_channel = bot.get_channel(guild_data[guild_id]["counting_channel"])
-        async for message in counting_channel.history(limit=1000, after=last_message):
+        async for message in counting_channel.history(limit=100, after=last_message):
             await check_count_message(message)
 
 @bot.tree.command(name="setchannel", description="Administratos only: sets the channel where the bot needs to keep track of counting.")
 async def setchannel(interaction: discord.Integration):
+    """Usable by admins of a guild to set the correct channel for ChadCounting to count in."""
     if interaction.user.guild_permissions.administrator:
         global guild_dat
         await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.")
@@ -83,9 +87,11 @@ async def checkcount(interaction: discord.Integration):
 
 @bot.event
 async def on_message(message):
+    """Discord event that gets triggered once a message is sent."""
     await check_count_message(message)
 
 async def check_count_message(message):
+    """Checks if the user has counted correctly and reacts with an emoji if so."""
     global guild_data
     if message.author == bot.user and message.channel.id != guild_data[message.guild.id]["counting_channel"]:
         return
@@ -106,6 +112,8 @@ async def check_count_message(message):
                 if guild_data[guild_id]["highest_count"] < current_count:
                     guild_data[guild_id]["highest_count"] = current_count
                 await message.add_reaction("🙂")
+                if str(current_count).find("69") != -1:
+                    await message.add_reaction("💦")
                 if str(current_count).find("72") != -1:
                     await message.add_reaction("😂")
             else:
@@ -115,12 +123,8 @@ async def check_count_message(message):
         with open("guild_data.json", "w") as f:
             json.dump(guild_data, f, cls=DateTimeEncoder)
 
-def json_serial(obj):
-    """JSON serializer for objects not serializable by default json code"""
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-
 async def handle_incorrect_count(guild_id, message, current_count, highest_count, is_repeated=False):
+    """Sends the correct error message to the user for counting incorrectly."""
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
     guild_data[guild_id]["previous_message"] = None
