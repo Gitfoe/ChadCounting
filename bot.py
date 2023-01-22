@@ -42,16 +42,21 @@ def init_guild_data():
         with open("guild_data.json", "w") as f:
             json.dump(guild_data, f)
 
-@bot.tree.command(name="setchannel")
+@bot.tree.command(name="setchannel", description="Administratos only: sets the channel where the bot needs to keep track of counting.")
 async def setchannel(interaction: discord.Integration):
     if interaction.user.guild_permissions.administrator:
         global guild_dat
-        await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.", ephemeral=True)
+        await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.")
         guild_data[interaction.guild.id]["counting_channel"] = interaction.channel_id
         with open("guild_data.json", "w") as f:
             json.dump(guild_data, f)
     else:
-        await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.")
+        await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
+
+@bot.tree.command(name="checkcount", description="Gives the current count in case you're unsure or you think someone deleted their message.")
+async def checkcount(interaction: discord.Integration):
+    current_count = guild_data[interaction.guild.id]["current_count"]
+    await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
 
 @bot.event
 async def on_message(message):
