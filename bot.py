@@ -6,10 +6,16 @@ from datetime import datetime
 import json
 from dotenv import load_dotenv
 
+# For developing only: make the bot only active in a certain guild. Bot must be in this guild already.
+dev_mode = True
+dev_mode_guild_id = 574350984495628436
+
+# Initialize variables from environment tables
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 guild_data = {};
 
+# Initialize bot and intents
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
@@ -24,6 +30,7 @@ class DateTimeEncoder(json.JSONEncoder):
 @bot.event
 async def on_ready():
     """Discord event that gets triggered once the connection has been established."""
+    print("ChadCounting is ready.")
     try:
         synced = await bot.tree.sync()
     except Exception as e:
@@ -51,8 +58,12 @@ def init_guild_data():
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
-        for guild in bot.guilds:
-            add_guild_to_guild_data(guild)     
+        if dev_mode:
+            add_guild_to_guild_data(bot.get_guild(dev_mode_guild_id))
+        else:
+            for guild in bot.guilds:
+                if dev_mode and guild == dev_mode_guild_id:
+                    add_guild_to_guild_data(guild)     
 
 async def check_for_missed_counts(guild_id):
     """Checks for up to 100 messages of counts that have not been counted because the bot was not running."""
