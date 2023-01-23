@@ -1,5 +1,7 @@
 # ChadCounting
-ChatCounting is a simple Discord bot designed to keep track of counting from one to infinity in a specific channel on your Discord server. Multiple people in the Discord channel should work together to count as high as possible. Unlike other counting bots, ChadCounting is specifically designed for skilled chads with highly accurate counting skills and does not sometimes miss a count, therefore ruining the count.
+<img align="right" src="logo_chadcounting.png" width="172">
+
+ChatCounting is a Discord bot designed to facilitate collaborative counting on your server. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. In contrast to other counting bots, ChatCounting is specifically optimized to minimize missed counts and keep track of the latest count, making it the perfect tool for your server's counting needs.
 
 ### [Click here to add the bot to your server/guild](https://discord.com/api/oauth2/authorize?client_id=1066081427935993886&permissions=67648&scope=bot)
 
