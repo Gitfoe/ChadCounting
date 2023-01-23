@@ -70,10 +70,10 @@ async def on_guild_join(guild):
 def add_guild_to_guild_data(guild):
     if guild.id not in guild_data: 
         guild_data[guild.id] = {"current_count": 0,
-                                        "highest_count": 0,
-                                        "previous_user": None,
-                                        "previous_message": None,
-                                        "counting_channel": None}
+                                "highest_count": 0,
+                                "previous_user": None,
+                                "previous_message": None,
+                                "counting_channel": None}
     with open("guild_data.json", "w") as f:
             json.dump(guild_data, f, cls=DateTimeEncoder)     
 
