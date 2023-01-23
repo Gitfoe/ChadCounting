@@ -1,5 +1,6 @@
 import os
 import discord
+from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 import json
@@ -85,6 +86,24 @@ async def checkcount(interaction: discord.Integration):
     current_count = guild_data[interaction.guild.id]["current_count"]
     await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
 
+@bot.tree.command(name="checkhighscore", description="Gives the highest count that has been achieved in this Discord server.")
+async def checkcount(interaction: discord.Integration):
+    highest_count = guild_data[interaction.guild.id]["highest_count"]
+    current_count = guild_data[interaction.guild.id]["current_count"]
+    full_text = f"The high score is {highest_count}. "
+    if highest_count > current_count:
+        full_text += f"That's {highest_count - current_count} higher than the current count. Do better, chads."
+    else:
+        full_text += "That's exactly the same as the current count!"
+        if current_count > 100:
+            full_text += " Well done, chads."
+    await interaction.response.send_message(full_text)
+
+# @bot.tree.command(name="say", description="Let the bot say something. It has to be something chad, however!")
+# @app_commands.describe(thing_to_say = "What should I say?")
+# async def say(interaction: discord.Integration, thing_to_say: str):
+#     await interaction.response.send_message(thing_to_say)
+
 @bot.event
 async def on_message(message):
     """Discord event that gets triggered once a message is sent."""
@@ -128,22 +147,15 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
     guild_data[guild_id]["previous_message"] = None
-    await message.add_reaction("💀")
-    await message.add_reaction("⚠️")
-    await message.add_reaction("🇳")
-    await message.add_reaction("🇴")
-    await message.add_reaction("❗")
-    await message.add_reaction("☠️")
-    prefix_text = f"What a beta move by {message.author.mention}."
-    suffix_text = "Only gigachads should be in charge of counting. Please start again from 1."
+    reactions = ["💀", "🇳", "🇴", "☠️"]
+    for r in reactions:
+        await message.add_reaction(r)
+    full_text = f"What a beta move by {message.author.mention}. "
+    suffix_text = f"Only gigachads should be in charge of counting. Please start again from 1. The high score is {highest_count}."
     if is_repeated:
-        full_text= f"{prefix_text} A user cannot count twice in a row. {suffix_text}"
+        full_text += f"A user cannot count twice in a row. {suffix_text}"
     else:
-        full_text = f"{prefix_text} That's not the right number, it should have been {current_count + 1}. {suffix_text}"
-    if highest_count == current_count:
-        full_text += f" The high score is now {highest_count}."
-    else:
-        full_text += f" The high score is {highest_count}."
-    await message.channel.send(full_text)
+        full_text += f"That's not the right number, it should have been {current_count + 1}. {suffix_text}"
+    await message.reply(full_text)
 
 bot.run(TOKEN)
