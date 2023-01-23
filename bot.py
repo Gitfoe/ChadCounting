@@ -141,8 +141,6 @@ async def check_count_message(message):
                 await message.add_reaction("🙂")
                 if str(current_count).find("69") != -1:
                     await message.add_reaction("💦")
-                if str(current_count).find("72") != -1:
-                    await message.add_reaction("😂")
             else:
                 await handle_incorrect_count(guild_id, message, current_count, highest_count)
         else:
