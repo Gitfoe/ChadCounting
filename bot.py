@@ -30,7 +30,7 @@ async def on_ready():
         print(e)
     init_guild_data()
     for guild in bot.guilds:
-        await check_for_missed_counts(guild.id)
+        await check_for_missed_counts(guild.id)   
 
 def init_guild_data():
     """Initializes the guild_data.json file, or loads it into the bot."""
@@ -52,14 +52,7 @@ def init_guild_data():
         raise Exception("There was an error decoding guild_data.json.")
     finally:
         for guild in bot.guilds:
-            if guild.id not in guild_data: 
-                guild_data[guild.id] = {"current_count": 0,
-                                        "highest_count": 0,
-                                        "previous_user": None,
-                                        "previous_message": None,
-                                        "counting_channel": None}
-        with open("guild_data.json", "w") as f:
-            json.dump(guild_data, f, cls=DateTimeEncoder)
+            add_guild_to_guild_data(guild)     
 
 async def check_for_missed_counts(guild_id):
     """Checks for up to 100 messages of counts that have not been counted because the bot was not running."""
@@ -67,7 +60,22 @@ async def check_for_missed_counts(guild_id):
     if last_message != None:
         counting_channel = bot.get_channel(guild_data[guild_id]["counting_channel"])
         async for message in counting_channel.history(limit=100, after=last_message):
-            await check_count_message(message)
+            await check_count_message(message)                                               
+
+@bot.event
+async def on_guild_join(guild):
+    """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
+    add_guild_to_guild_data(guild)
+
+def add_guild_to_guild_data(guild):
+    if guild.id not in guild_data: 
+        guild_data[guild.id] = {"current_count": 0,
+                                        "highest_count": 0,
+                                        "previous_user": None,
+                                        "previous_message": None,
+                                        "counting_channel": None}
+    with open("guild_data.json", "w") as f:
+            json.dump(guild_data, f, cls=DateTimeEncoder)     
 
 @bot.tree.command(name="setchannel", description="Administratos only: sets the channel where the bot needs to keep track of counting.")
 async def setchannel(interaction: discord.Integration):
