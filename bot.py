@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 import json
 from dotenv import load_dotenv
 
-# For developing only: make the bot only active in a certain guild. Bot must be in this guild already.
-dev_mode = True
-dev_mode_guild_id = 574350984495628436
+# For developing only
+dev_mode = True # make the bot only active in a certain guild
+dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already.
+update_guild_data = True # Forces updateing of new guild_data values after a ChadCounting update.
 
 # Initialize variables from environment tables
 load_dotenv()
@@ -55,25 +56,30 @@ def init_guild_data():
                 guild_data = convert_keys_to_int(guild_data)
                 # Converts isoformats in guild_data.json to datetime objects
                 for v in guild_data.values():
-                    if v["previous_message"] != None:
+                    if "previous_message" in v and v["previous_message"] != None:
                         v["previous_message"] = datetime.fromisoformat(v["previous_message"])
-                    for value in v["users"].values():
-                        if value["time_banned"] != None:
-                            value["time_banned"] = datetime.fromisoformat(value["time_banned"])
+                    if "users" in v:
+                        for value in v["users"].values():
+                            if value["time_banned"] != None:
+                                value["time_banned"] = datetime.fromisoformat(value["time_banned"])
         print("guild_data.json successfully loaded.")
     except FileNotFoundError:
-        with open("guild_data.json", "w") as f:
-            json.dump({}, f, cls=DateTimeEncoder)
+        write_guild_data(guild_data)
         print("guild_data.json didn't exist and was created.")
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
         if dev_mode:
-            add_guild_to_guild_data(bot.get_guild(dev_mode_guild_id))
+            add_guild_to_guild_data(bot.get_guild(dev_mode_guild_id), update_guild_data)
         else:
             for guild in bot.guilds:
-                add_guild_to_guild_data(guild)
+                add_guild_to_guild_data(guild, update_guild_data)
         print(f"Successfully loaded {len(guild_data)} guild(s) to the local dictionary.")
+
+def write_guild_data(guild_data):
+    """Writes the dictionary guild_data to guild_data.json."""
+    with open("guild_data.json", "w") as f:
+        json.dump(guild_data, f, cls=DateTimeEncoder)
 
 def convert_keys_to_int(data):
     """Converts all keys in a dictionary and its nested dictionaries or lists to integers."""
@@ -97,18 +103,27 @@ async def on_guild_join(guild):
     """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
     add_guild_to_guild_data(guild)
 
-def add_guild_to_guild_data(guild):
-    """Adds a new empty guild to the guild_data dictionary."""
+def add_guild_to_guild_data(guild, update = False):
+    """Adds a new empty guild to the guild_data dictionary, or adds missing values."""
+    values = {"current_count": 0,
+              "highest_count": 0,
+              "previous_user": None,
+              "previous_message": None,
+              "counting_channel": None,
+              "users": {}}  
     if guild.id not in guild_data: 
-        guild_data[guild.id] = {"current_count": 0,
-                                "highest_count": 0,
-                                "previous_user": None,
-                                "previous_message": None,
-                                "counting_channel": None,
-                                "users": {}}  
-        with open("guild_data.json", "w") as f:
-            json.dump(guild_data, f, cls=DateTimeEncoder)
+        guild_data[guild.id] = values
+        write_guild_data(guild_data)
         print(f"New guild {guild.id} successfully added to the dictionary and saved in guild_data.json.")
+    elif update and guild.id in guild_data:
+        values_added = 0
+        for k, v in values.items():
+            if k not in guild_data[guild.id]:
+                guild_data[guild.id][k] = v
+                values_added += 1
+        if values_added > 0:
+            write_guild_data(guild_data)
+            print(f"Successfully added new guild_data values for guild {guild.id} and saved in guild_data.json.")
 
 @bot.event
 async def on_message(message):
@@ -155,8 +170,7 @@ async def check_count_message(message):
                     await handle_incorrect_count(guild_id, message, current_count, highest_count)
             else:
                 await handle_incorrect_count(guild_id, message, current_count, highest_count, True) 
-            with open("guild_data.json", "w") as f:
-                json.dump(guild_data, f, cls=DateTimeEncoder)
+            write_guild_data(guild_data)
 
 def add_user_in_guild_data_json(user_id, guild_id):
     """Adds a new user in the 'users' dictionary in guild_data and writes it to the json file."""
@@ -164,8 +178,7 @@ def add_user_in_guild_data_json(user_id, guild_id):
     if user_id not in guild_data[guild_id]["users"]:
         guild_data[guild_id]["users"][user_id] = {"time_banned": None,
                                                   "ban_time": 0}
-        with open("guild_data.json", "w") as f:
-            json.dump(guild_data, f, cls=DateTimeEncoder)
+        write_guild_data(guild_data)
 
 def check_user_banned(user_id, guild_id):
     """Checks if the user is still banned, and if so, returns the minutes of banned time."""
@@ -209,7 +222,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
 def calculate_user_penalization(current_count):
     """Calculates how long a user should be banned because they incorrectly counted on low counts, which isn't chad."""
     maximum_minutes_ban = 720
-    base_decrease_rate = 1.1 # Exponentionally decrease bantime
+    base_decrease_rate = 1.27 # Exponentionally decrease bantime
     minutes_ban = maximum_minutes_ban / math.pow(base_decrease_rate, current_count)
     if minutes_ban >= 1: # Minimum ban of 1 minute
         return round(minutes_ban)
@@ -220,8 +233,7 @@ def ban_user(user_id, guild_id, ban_time):
     """Bans a user for a certain amount of time."""
     guild_data[guild_id]["users"][user_id]["time_banned"] = datetime.now()
     guild_data[guild_id]["users"][user_id]["ban_time"] = ban_time
-    with open("guild_data.json", "w") as f:
-        json.dump(guild_data, f, cls=DateTimeEncoder) 
+    write_guild_data(guild_data)
 
 def minutes_to_fancy_string(minutes, short = False):
     """Converts an integer of minutes to a string of hours and minutes."""
@@ -247,8 +259,7 @@ async def setchannel(interaction: discord.Integration):
         if interaction.user.guild_permissions.administrator:
             global guild_dat
             guild_data[interaction.guild.id]["counting_channel"] = interaction.channel_id
-            with open("guild_data.json", "w") as f:
-                json.dump(guild_data, f, cls=DateTimeEncoder)
+            write_guild_data(guild_data)
             await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.")
         else:
             await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
