@@ -1,4 +1,5 @@
 import os
+import re
 import math
 import traceback
 import statistics
@@ -10,7 +11,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # For developing only
-dev_mode = True # make the bot only active in a certain guild
+dev_mode = False # make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already.
 update_guild_data = True # Forces updateing of new guild_data values after a ChadCounting update.
 
@@ -39,7 +40,6 @@ async def on_ready():
     # while testing_count < 100:
     #     print(calculate_user_penalization(testing_count, 25))
     #     testing_count += 1
-
     try:
         synced = await bot.tree.sync()
     except Exception as e:
@@ -81,7 +81,7 @@ def init_guild_data():
         else:
             for guild in bot.guilds:
                 add_guild_to_guild_data(guild.id, update_guild_data)
-        print(f"Successfully loaded {len(guild_data)} guild(s) to the local dictionary.")
+        print(f"Successfully loaded {len(guild_data)} guild(s).")
 
 def write_guild_data(guild_data):
     """Writes the dictionary guild_data to guild_data.json."""
@@ -161,7 +161,7 @@ async def on_message(message):
 async def check_count_message(message):
     """Checks if the user has counted correctly and reacts with an emoji if so."""
     global guild_data
-    # Ignores messages sent by ChadCounting, and if devmode is on, exit if message is not from dev mode guild
+    # Ignores messages sent by ChadCounting, and if dev_mode is on, exit if message is not from dev mode guild
     if message.author == bot.user or dev_mode and not message.guild.id == dev_mode_guild_id:
         return
     # Checks if the message is sent in counting channel and starts with a number
@@ -218,6 +218,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
     guild_data[guild_id]["previous_message"] = None
+    maximum_ban = 120
     await message.add_reaction("💀")
     full_text = f"What a beta move by {message.author.mention}. "
     suffix_text = f"Only gigachads should be in charge of counting. Please start again from 1. The high score is {highest_count}."
@@ -227,11 +228,13 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
         full_text += f"That's not the right number, it should have been {current_count + 1}. {suffix_text}"
     # User ban logic
     average_count = calculate_average_count_of_guild(guild_id)
-    current_user_minutes_ban = calculate_user_penalization(current_count, average_count)
+    current_user_minutes_ban = calculate_user_penalization(current_count, average_count, message.content)
     if current_user_minutes_ban > 0:
         ban_user(message.author.id, guild_id, current_user_minutes_ban)
         current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
-        full_text += f" Moreover, because you messed up at such a low count, you are now banned for {current_user_ban_string}."
+        full_text += f" Moreover, because you messed up, you are now banned for {current_user_ban_string}."
+        if current_user_minutes_ban > maximum_ban:
+            full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
     # End of user ban logic
     await message.reply(full_text)
     additional_reactions = ["🇳", "🇴"]
@@ -246,14 +249,25 @@ def calculate_average_count_of_guild(guild_id):
     else:
         return 0
 
-def calculate_user_penalization(current_count, average_count, minimum_ban=1, maximum_ban=120, range=1.1):
+def calculate_user_penalization(current_count, average_count, message_count="", minimum_ban=1, maximum_ban=120, range=1.1, troll_amplifier=7):
     """Calculates how long a user should be banned based on an exponential curve around the average count. 
     The further the current count is from the average count, the higher the ban time will be. 
     The ban time will be at least the minimum_ban time and capped at the maximum_ban time.
-    Range determines the width of the exponential curve."""
+    Range determines the width of the exponential curve.
+    Users who are off very much from the actual count (and probably trolling) will get penalized harder."""
+    # Convert string of message into integer, or the current_count if no numbers are found
+    match = re.match(r'^\d+', message_count)
+    if match:
+        average_count_int = int(match.group())
+    else:
+        average_count_int = current_count
+    # Math to calculate the ban time based on the average count and the current count
     difference_from_average = abs(current_count - average_count)
     minutes_ban = math.pow(range, difference_from_average)
-    if minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
+    # Return the ban time in minutes
+    if current_count * 7 < average_count_int: # Penalize hard if the entered count is more than 10x off from the actual count
+        return maximum_ban * troll_amplifier
+    elif minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
         return round(minutes_ban)
     elif minutes_ban > minimum_ban:
         return maximum_ban
@@ -261,7 +275,7 @@ def calculate_user_penalization(current_count, average_count, minimum_ban=1, max
         return 0
 
 def ban_user(user_id, guild_id, ban_time):
-    """Bans a user for a certain amount of time."""
+    """Bans a user in a certain guild for a certain amount of time."""
     guild_data[guild_id]["users"][user_id]["time_banned"] = datetime.now()
     guild_data[guild_id]["users"][user_id]["ban_time"] = ban_time
     write_guild_data(guild_data)
@@ -298,7 +312,7 @@ async def setchannel(interaction: discord.Integration):
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured setting the channel. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
-@bot.tree.command(name="checkcount", description="Gives the current count in case you're unsure or you think someone deleted their message.")
+@bot.tree.command(name="checkcount", description="Gives the current count in case you're unsure or want to double check.")
 async def checkcount(interaction: discord.Integration):
     try:
         current_count = guild_data[interaction.guild.id]["current_count"]
@@ -312,19 +326,37 @@ async def checkcount(interaction: discord.Integration):
     try:
         highest_count = guild_data[interaction.guild.id]["highest_count"]
         current_count = guild_data[interaction.guild.id]["current_count"]
+        average_count = round(calculate_average_count_of_guild(interaction.guild.id), 2)
         full_text = f"The high score is {highest_count}. "
+        points = 0 # Points get calculated for the last suffix.
         if highest_count > current_count:
-            full_text += f"That's {highest_count - current_count} higher than the current count. Do better, chads."
+            full_text += f"That's {highest_count - current_count} higher than the current count... "
         else:
-            full_text += "That's exactly the same as the current count!"
-            if current_count > 100:
-                full_text += " Well done, chads."
+            full_text += "That's exactly the same as the current count! "
+            points += 1
+        full_text += f"On average you lads counted to {average_count}, and your current count is "
+        if current_count > average_count:
+            full_text += f"{current_count - average_count} higher than the average. "
+            points += 2
+        elif current_count < average_count:
+            full_text += f"{average_count - current_count} lower than the average... "
+        else:
+            full_text += "exactly the same as the average. "
+            points += 1
+        if points == 0:
+            full_text += "Do better, beta's."
+        elif points == 1:
+            full_text += "Decent work."
+        elif points == 2:
+            full_text += "Well done."
+        elif points >= 3:
+            full_text += "Excellent work, chads!"
         await interaction.response.send_message(full_text)
     except Exception:
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured obtaining the high score. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
-@bot.tree.command(name="checkbanrate", description="Gives a list of the different ban levels if you mess up counting.")
+@bot.tree.command(name="checkbanrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
 async def checkbanrate(interaction: discord.Integration):
     global guild_data
     try:
