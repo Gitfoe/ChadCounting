@@ -1,11 +1,12 @@
 import os
-import discord
 import math
 import traceback
-#from discord import app_commands
+import statistics
+import json
+import discord
+# from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timedelta
-import json
 from dotenv import load_dotenv
 
 # For developing only
@@ -33,6 +34,12 @@ class DateTimeEncoder(json.JSONEncoder):
 @bot.event
 async def on_ready():
     """Discord event that gets triggered once the connection has been established."""
+    # Testing
+    # testing_count = 0
+    # while testing_count < 100:
+    #     print(calculate_user_penalization(testing_count, 25))
+    #     testing_count += 1
+
     try:
         synced = await bot.tree.sync()
     except Exception as e:
@@ -70,10 +77,10 @@ def init_guild_data():
         raise Exception("There was an error decoding guild_data.json.")
     finally:
         if dev_mode:
-            add_guild_to_guild_data(bot.get_guild(dev_mode_guild_id), update_guild_data)
+            add_guild_to_guild_data(dev_mode_guild_id, update_guild_data)
         else:
             for guild in bot.guilds:
-                add_guild_to_guild_data(guild, update_guild_data)
+                add_guild_to_guild_data(guild.id, update_guild_data)
         print(f"Successfully loaded {len(guild_data)} guild(s) to the local dictionary.")
 
 def write_guild_data(guild_data):
@@ -103,27 +110,48 @@ async def on_guild_join(guild):
     """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
     add_guild_to_guild_data(guild)
 
-def add_guild_to_guild_data(guild, update = False):
+def add_guild_to_guild_data(guild_id, update = False):
     """Adds a new empty guild to the guild_data dictionary, or adds missing values."""
+    global guild_data
     values = {"current_count": 0,
               "highest_count": 0,
               "previous_user": None,
               "previous_message": None,
               "counting_channel": None,
-              "users": {}}  
-    if guild.id not in guild_data: 
-        guild_data[guild.id] = values
+              "users": {},
+              "previous_counts": []}
+    if guild_id not in guild_data: 
+        guild_data[guild_id] = values
         write_guild_data(guild_data)
-        print(f"New guild {guild.id} successfully added to the dictionary and saved in guild_data.json.")
-    elif update and guild.id in guild_data:
+        print(f"New guild {guild_id} successfully added.")
+    elif update and guild_id in guild_data:
         values_added = 0
         for k, v in values.items():
-            if k not in guild_data[guild.id]:
-                guild_data[guild.id][k] = v
+            if k not in guild_data[guild_id]:
+                guild_data[guild_id][k] = v
                 values_added += 1
         if values_added > 0:
             write_guild_data(guild_data)
-            print(f"Successfully added new guild_data values for guild {guild.id} and saved in guild_data.json.")
+            print(f"Successfully added new guild_data values for guild {guild_id}.")
+
+def add_user_in_guild_data_json(user_id, guild_id, update = False):
+    """Adds a new user in the 'users' dictionary in guild_data and writes it to the json file."""
+    global guild_data
+    values = {"time_banned": None,
+              "ban_time": 0}
+    if user_id not in guild_data[guild_id]["users"]:
+        guild_data[guild_id]["users"][user_id] = values 
+        write_guild_data(guild_data)
+        (f"New user {user_id} successfully added to guild {guild_id}.")
+    elif update and user_id in guild_data[guild_id]["users"]:
+        values_added = 0
+        for k, v in values.items():
+            if k not in guild_data[guild_id]["users"][user_id]:
+                guild_data[guild_id]["users"][user_id][k] = v
+                values_added += 1
+        if values_added > 0:
+            write_guild_data(guild_data)
+            print(f"Successfully added new user values for user {user_id} in guild {guild_id}.")
 
 @bot.event
 async def on_message(message):
@@ -133,14 +161,11 @@ async def on_message(message):
 async def check_count_message(message):
     """Checks if the user has counted correctly and reacts with an emoji if so."""
     global guild_data
-    # If devmode is on, exit if the message is not from the dev mode guild
-    if dev_mode and not message.guild.id == dev_mode_guild_id:
+    # Ignores messages sent by ChadCounting, and if devmode is on, exit if message is not from dev mode guild
+    if message.author == bot.user or dev_mode and not message.guild.id == dev_mode_guild_id:
         return
-    # Ignores messages sent by ChadCounting itself and if a message isn't sent in the counting channel
-    if message.author == bot.user and message.channel.id != guild_data[message.guild.id]["counting_channel"]:
-        return
-    # Checks if the message starts with a number, which means it's going to be counted
-    elif message.content[0].isnumeric():
+    # Checks if the message is sent in counting channel and starts with a number
+    elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and message.content[0].isnumeric():
         # Declare variables for later use
         guild_id = message.guild.id
         current_count = guild_data[guild_id]["current_count"]
@@ -148,7 +173,7 @@ async def check_count_message(message):
         previous_user = guild_data[guild_id]["previous_user"]
         highest_count = guild_data[guild_id]["highest_count"]
         # Ban logic
-        add_user_in_guild_data_json(current_user, guild_id)
+        add_user_in_guild_data_json(current_user, guild_id, update_guild_data)
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
         if current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
@@ -169,16 +194,8 @@ async def check_count_message(message):
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count)
             else:
-                await handle_incorrect_count(guild_id, message, current_count, highest_count, True) 
+                await handle_incorrect_count(guild_id, message, current_count, highest_count, True)
             write_guild_data(guild_data)
-
-def add_user_in_guild_data_json(user_id, guild_id):
-    """Adds a new user in the 'users' dictionary in guild_data and writes it to the json file."""
-    global guild_data
-    if user_id not in guild_data[guild_id]["users"]:
-        guild_data[guild_id]["users"][user_id] = {"time_banned": None,
-                                                  "ban_time": 0}
-        write_guild_data(guild_data)
 
 def check_user_banned(user_id, guild_id):
     """Checks if the user is still banned, and if so, returns the minutes of banned time."""
@@ -197,6 +214,7 @@ def check_user_banned(user_id, guild_id):
 
 async def handle_incorrect_count(guild_id, message, current_count, highest_count, is_repeated=False):
     """Sends the correct error message to the user for counting incorrectly."""
+    guild_data[guild_id]["previous_counts"].append(current_count)
     guild_data[guild_id]["current_count"] = 0
     guild_data[guild_id]["previous_user"] = None
     guild_data[guild_id]["previous_message"] = None
@@ -208,7 +226,8 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     else:
         full_text += f"That's not the right number, it should have been {current_count + 1}. {suffix_text}"
     # User ban logic
-    current_user_minutes_ban = calculate_user_penalization(current_count)
+    average_count = calculate_average_count_of_guild(guild_id)
+    current_user_minutes_ban = calculate_user_penalization(current_count, average_count)
     if current_user_minutes_ban > 0:
         ban_user(message.author.id, guild_id, current_user_minutes_ban)
         current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
@@ -219,13 +238,25 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     for r in additional_reactions:
         await message.add_reaction(r)
 
-def calculate_user_penalization(current_count):
-    """Calculates how long a user should be banned because they incorrectly counted on low counts, which isn't chad."""
-    maximum_minutes_ban = 720
-    base_decrease_rate = 1.27 # Exponentionally decrease bantime
-    minutes_ban = maximum_minutes_ban / math.pow(base_decrease_rate, current_count)
-    if minutes_ban >= 1: # Minimum ban of 1 minute
+def calculate_average_count_of_guild(guild_id):
+    """Calculates the mean of the previous_counts in a certain guild_id and returns 0 if there aren't any."""
+    previous_counts = guild_data[guild_id]["previous_counts"]
+    if len(previous_counts) > 0:
+        return statistics.mean(previous_counts)
+    else:
+        return 0
+
+def calculate_user_penalization(current_count, average_count, minimum_ban=1, maximum_ban=120, range=1.1):
+    """Calculates how long a user should be banned based on an exponential curve around the average count. 
+    The further the current count is from the average count, the higher the ban time will be. 
+    The ban time will be at least the minimum_ban time and capped at the maximum_ban time.
+    Range determines the width of the exponential curve."""
+    difference_from_average = abs(current_count - average_count)
+    minutes_ban = math.pow(range, difference_from_average)
+    if minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
         return round(minutes_ban)
+    elif minutes_ban > minimum_ban:
+        return maximum_ban
     else:
         return 0
 
@@ -295,22 +326,28 @@ async def checkcount(interaction: discord.Integration):
 
 @bot.tree.command(name="checkbanrate", description="Gives a list of the different ban levels if you mess up counting.")
 async def checkbanrate(interaction: discord.Integration):
+    global guild_data
     try:
-        first_message = "Here you go, the current ban rate, you chad:\n"
-        consecutive_message = "Here's the continuation of the previous ban rate levels:\n"
+        first_message = "Here you go, the current ban rate, you chad:\n```"
+        consecutive_message = "Here's the continuation of the previous ban rate levels:\n```"
         ban_levels_list = [first_message]
         current_count = 0 # Start at calculating the count from 0
-        current_level = 1 # Arbritrary starting level to simulate a do/while loop
         message_index = 0 # Since there is a 2000 character message limit on Discord
-        while current_level > 0:
-            current_level = calculate_user_penalization(current_count)
+        average_count = calculate_average_count_of_guild(interaction.guild.id)
+        minimum_ban = 1
+        maximum_ban = 120
+        current_level = maximum_ban / 2 # Arbritrary level to simulate a do/while loop
+        while current_level >= minimum_ban and current_level < maximum_ban:
+            current_level = calculate_user_penalization(current_count, average_count)
             current_level_fancy = minutes_to_fancy_string(current_level, True)
             ban_level_string = f"Count {current_count}: {current_level_fancy} ban\n"
-            if not len(ban_levels_list[message_index]) + len(ban_level_string) <= 2000:
+            if not len(ban_levels_list[message_index]) + len(ban_level_string) + 3 <= 2000: # 3 for the ```code block
+                ban_levels_list[message_index] += "```" # End the level with a quote block
                 message_index += 1
                 ban_levels_list.append(consecutive_message)
             ban_levels_list[message_index] += ban_level_string
             current_count += 1
+        ban_levels_list[message_index] += f"```\nMessing up at any later counts will result in a ban of {current_level_fancy}."
         for index, level in enumerate(ban_levels_list):
             if index == 0:
                 await interaction.response.send_message(level, ephemeral=True)
