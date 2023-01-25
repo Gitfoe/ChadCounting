@@ -11,9 +11,9 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # For developing only
-dev_mode = False # make the bot only active in a certain guild
+dev_mode = True # Make the bot only active in a certain guild.
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already.
-update_guild_data = True # Forces updateing of new guild_data values after a ChadCounting update.
+update_guild_data = True # Forces updateing of newly added guild_data values after a ChadCounting update.
 
 # Initialize variables from environment tables
 load_dotenv()
@@ -35,11 +35,6 @@ class DateTimeEncoder(json.JSONEncoder):
 @bot.event
 async def on_ready():
     """Discord event that gets triggered once the connection has been established."""
-    # Testing
-    # testing_count = 0
-    # while testing_count < 100:
-    #     print(calculate_user_penalization(testing_count, 25))
-    #     testing_count += 1
     try:
         synced = await bot.tree.sync()
     except Exception as e:
@@ -81,6 +76,9 @@ def init_guild_data():
         else:
             for guild in bot.guilds:
                 add_guild_to_guild_data(guild.id, update_guild_data)
+                if update_guild_data:
+                    for user in guild_data[guild.id]["users"]:
+                        add_user_in_guild_data_json(user, update_guild_data)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
 
 def write_guild_data(guild_data):
@@ -124,7 +122,7 @@ def add_guild_to_guild_data(guild_id, update = False):
         guild_data[guild_id] = values
         write_guild_data(guild_data)
         print(f"New guild {guild_id} successfully added.")
-    elif update and guild_id in guild_data:
+    elif update:
         values_added = 0
         for k, v in values.items():
             if k not in guild_data[guild_id]:
@@ -132,18 +130,20 @@ def add_guild_to_guild_data(guild_id, update = False):
                 values_added += 1
         if values_added > 0:
             write_guild_data(guild_data)
-            print(f"Successfully added new guild_data values for guild {guild_id}.")
+            print(f"Successfully added {values_added} new guild_data values for guild {guild_id}.")
 
 def add_user_in_guild_data_json(user_id, guild_id, update = False):
     """Adds a new user in the 'users' dictionary in guild_data and writes it to the json file."""
     global guild_data
     values = {"time_banned": None,
-              "ban_time": 0}
+              "ban_time": 0,
+              "correct_counts": 0,
+              "incorrect_counts": 0}
     if user_id not in guild_data[guild_id]["users"]:
         guild_data[guild_id]["users"][user_id] = values 
         write_guild_data(guild_data)
         (f"New user {user_id} successfully added to guild {guild_id}.")
-    elif update and user_id in guild_data[guild_id]["users"]:
+    elif update:
         values_added = 0
         for k, v in values.items():
             if k not in guild_data[guild_id]["users"][user_id]:
@@ -151,7 +151,7 @@ def add_user_in_guild_data_json(user_id, guild_id, update = False):
                 values_added += 1
         if values_added > 0:
             write_guild_data(guild_data)
-            print(f"Successfully added new user values for user {user_id} in guild {guild_id}.")
+            print(f"Successfully added {values_added} new user values for user {user_id} in guild {guild_id}.")
 
 @bot.event
 async def on_message(message):
@@ -183,18 +183,19 @@ async def check_count_message(message):
             if current_user != previous_user:
                 if message.content.startswith(str(current_count + 1)):
                     guild_data[guild_id]["current_count"] += 1
+                    guild_data[guild_id]["users"][current_user]["correct_counts"] += 1
                     guild_data[guild_id]["previous_user"] = current_user
                     guild_data[guild_id]["previous_message"] = message.created_at
-                    if guild_data[guild_id]["highest_count"] < current_count:
+                    if highest_count < current_count: # New high score
                         guild_data[guild_id]["highest_count"] = current_count
-                    await message.add_reaction("🙂")
+                    await message.add_reaction("🙂") # Acknowledge a correct count
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
                     if str(current_count).find("69") != -1:
                         await message.add_reaction("💦")
                 else:
-                    await handle_incorrect_count(guild_id, message, current_count, highest_count)
+                    await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
             else:
-                await handle_incorrect_count(guild_id, message, current_count, highest_count, True)
+                await handle_incorrect_count(guild_id, message, current_count, highest_count, True) # Repeated count
             write_guild_data(guild_data)
 
 def check_user_banned(user_id, guild_id):
@@ -216,6 +217,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     """Sends the correct error message to the user for counting incorrectly."""
     guild_data[guild_id]["previous_counts"].append(current_count)
     guild_data[guild_id]["current_count"] = 0
+    guild_data[guild_id]["users"][message.author.id]["incorrect_counts"] += 1
     guild_data[guild_id]["previous_user"] = None
     guild_data[guild_id]["previous_message"] = None
     maximum_ban = 120
