@@ -5,13 +5,13 @@ import traceback
 import statistics
 import json
 import discord
-# from discord import app_commands
+from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # For developing only
-dev_mode = True # Make the bot only active in a certain guild.
+dev_mode = False # Make the bot only active in a certain guild.
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already.
 update_guild_data = True # Forces updateing of newly added guild_data values after a ChadCounting update.
 
@@ -73,12 +73,14 @@ def init_guild_data():
     finally:
         if dev_mode:
             add_guild_to_guild_data(dev_mode_guild_id, update_guild_data)
+            for user_id in guild_data[dev_mode_guild_id]["users"]:
+                add_user_in_guild_data_json(user_id, dev_mode_guild_id, update_guild_data)
         else:
             for guild in bot.guilds:
                 add_guild_to_guild_data(guild.id, update_guild_data)
                 if update_guild_data:
-                    for user in guild_data[guild.id]["users"]:
-                        add_user_in_guild_data_json(user, update_guild_data)
+                    for user_id in guild_data[guild.id]["users"]:
+                        add_user_in_guild_data_json(user_id, guild.id, update_guild_data)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
 
 def write_guild_data(guild_data):
@@ -314,8 +316,8 @@ async def setchannel(interaction: discord.Integration):
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured setting the channel. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
-@bot.tree.command(name="checkcount", description="Gives the current count in case you're unsure or want to double check.")
-async def checkcount(interaction: discord.Integration):
+@bot.tree.command(name="currentcount", description="Gives the current count in case you're unsure or want to double check.")
+async def currentcount(interaction: discord.Integration):
     try:
         current_count = guild_data[interaction.guild.id]["current_count"]
         await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
@@ -323,8 +325,8 @@ async def checkcount(interaction: discord.Integration):
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured obtaining the current count. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
-@bot.tree.command(name="checkhighscore", description="Gives the highest count that has been achieved in this Discord server.")
-async def checkcount(interaction: discord.Integration):
+@bot.tree.command(name="highscore", description="Gives the highest count that has been achieved in this Discord server.")
+async def highscore(interaction: discord.Integration):
     try:
         highest_count = guild_data[interaction.guild.id]["highest_count"]
         current_count = guild_data[interaction.guild.id]["current_count"]
@@ -358,10 +360,10 @@ async def checkcount(interaction: discord.Integration):
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured obtaining the high score. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
-@bot.tree.command(name="checkbanrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
-async def checkbanrate(interaction: discord.Integration):
-    global guild_data
+@bot.tree.command(name="banrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
+async def banrate(interaction: discord.Integration):
     try:
+        global guild_data
         first_message = "Here you go, the current ban rate, you chad:\n```"
         consecutive_message = "Here's the continuation of the previous ban rate levels:\n```"
         ban_levels_list = [first_message]
@@ -390,5 +392,44 @@ async def checkbanrate(interaction: discord.Integration):
     except Exception:
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured obtaining the ban levels. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
+
+@bot.tree.command(name="userstats", description="Gives counting statistics of a user for this Discord server.")
+@app_commands.describe(user = "Optional: the user you want to check the stats of.")
+async def userstats(interaction: discord.Integration, user: discord.Member=None):
+    try:
+        global guild_data
+        guild_id = interaction.guild.id
+        if user == None:
+            user_id = interaction.user.id
+            username = interaction.user.name
+        else:
+            user_id = user.id
+            username = user.name   
+        # Define statistics
+        if user_id in guild_data[guild_id]["users"]:
+            correct_counts = guild_data[guild_id]["users"][user_id]["correct_counts"]
+            incorrect_counts = guild_data[guild_id]["users"][user_id]["incorrect_counts"]
+            total_counts = correct_counts + incorrect_counts
+            if total_counts > 0:
+                percent_correct = f"{round((correct_counts / (total_counts)) * 100)}%"
+            else:
+                percent_correct = "N/A"
+            active_in_guilds = 0
+            for values in guild_data.values():
+                if user_id in values["users"]:
+                    active_in_guilds += 1
+        else:
+            await interaction.response.send_message(f"{username} has not participated in ChadCounting yet. Shame.")
+        # End of defining statistics
+        full_text = (f"Here you go, the counting stats of {username}.\n```" +
+                     f"Correct counts: {correct_counts}\n" +
+                     f"Incorrect counts: {incorrect_counts}\n" + 
+                     f"Total counts: {total_counts}\n" +
+                     f"Percent correct: {percent_correct}\n" +
+                     f"Active in guilds: {active_in_guilds}```")
+        await interaction.response.send_message(full_text)
+    except Exception:
+        error = traceback.format_exc()
+        await interaction.response.send_message(f"An error occured obtaining the statistics. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
 
 bot.run(TOKEN)

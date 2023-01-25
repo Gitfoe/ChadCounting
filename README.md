@@ -10,6 +10,7 @@ ChadCounting is a Discord bot designed to facilitate collaborative counting on y
 - Users must follow counting rules, including preventing double counting, counting backwards, and skipping counts
 - Temporary bans for count mistakes, with severity determined by an exponential U-curve
 - Built-in troll prevention to severely penalize users who intentionally disrupt the count
+- Keeps track of user statistics like correct and incorrect counts
 - Works seamlessly across an unlimited number of servers
 - Count data is saved to a JSON database, eliminating the need for external database software
 - High score and previous counts are tracked
@@ -22,9 +23,10 @@ To configue the bot for the first time, add it to your Discord server and use th
 ## Commands
 The following commands could be used:
 - `/setchannel`: sets the counting channel the bot will be active in.
-- `/checkcount`: checks the current count in case you're unsure if the count is still correct.
-- `/checkhighscore`: shows the current high score and the average.
-- `/checkbanrate`: shows how hard you will be penalized for making a mistake at the different counts.
+- `/currentcount`: checks the current count in case you're unsure if the count is still correct.
+- `/highscore`: shows the current high score and the average.
+- `/userstats`: gives counting statistics of a user.
+- `/banrate`: shows how hard you will be penalized for making a mistake at the different counts.
 
 ## Developer stuff
 ### Dependencies
