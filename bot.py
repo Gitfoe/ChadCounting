@@ -119,7 +119,15 @@ def add_guild_to_guild_data(guild_id, update = False):
               "previous_message": None,
               "counting_channel": None,
               "users": {},
-              "previous_counts": []}
+              "previous_counts": [],
+              "s_correct_reaction": "🙂",
+              "s_incorrect_reaction": ["💀"],
+              "s_pass_doublecount": False,
+              "s_banning": True,
+              "s_minimum_ban": 1,
+              "s_maximum_ban": 120,
+              "s_ban_range": 1.1,
+              "s_troll_amplifier": 7}
     if guild_id not in guild_data: 
         guild_data[guild_id] = values
         write_guild_data(guild_data)
@@ -170,14 +178,15 @@ async def check_count_message(message):
     elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and message.content[0].isnumeric():
         # Declare variables for later use
         guild_id = message.guild.id
-        current_count = guild_data[guild_id]["current_count"]
         current_user = message.author.id
+        current_count = guild_data[guild_id]["current_count"]
         previous_user = guild_data[guild_id]["previous_user"]
         highest_count = guild_data[guild_id]["highest_count"]
+        add_user_in_guild_data_json(current_user, guild_id) # Try to add new users to the guild
         # Ban logic
-        add_user_in_guild_data_json(current_user, guild_id, update_guild_data)
+        banning = guild_data[guild_id]["s_banning"]
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
-        if current_user_minutes_ban >= 1:
+        if banning and current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
             await message.reply(f"You are still banned from counting for {current_user_ban_string}, you beta.")
         # End of ban logic
@@ -190,14 +199,15 @@ async def check_count_message(message):
                     guild_data[guild_id]["previous_message"] = message.created_at
                     if highest_count < current_count: # New high score
                         guild_data[guild_id]["highest_count"] = current_count
-                    await message.add_reaction("🙂") # Acknowledge a correct count
+                    await message.add_reaction(guild_data[guild_id]["s_correct_reaction"]) # Acknowledge a correct count
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
                     if str(current_count).find("69") != -1:
                         await message.add_reaction("💦")
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
             else:
-                await handle_incorrect_count(guild_id, message, current_count, highest_count, True) # Repeated count
+                pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
+                await handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount) # Repeated count
             write_guild_data(guild_data)
 
 def check_user_banned(user_id, guild_id):
@@ -215,35 +225,44 @@ def check_user_banned(user_id, guild_id):
     else:
         return 0
 
-async def handle_incorrect_count(guild_id, message, current_count, highest_count, is_repeated=False):
-    """Sends the correct error message to the user for counting incorrectly."""
-    guild_data[guild_id]["previous_counts"].append(current_count)
-    guild_data[guild_id]["current_count"] = 0
-    guild_data[guild_id]["users"][message.author.id]["incorrect_counts"] += 1
-    guild_data[guild_id]["previous_user"] = None
-    guild_data[guild_id]["previous_message"] = None
-    maximum_ban = 120
-    await message.add_reaction("💀")
-    full_text = f"What a beta move by {message.author.mention}. "
-    suffix_text = f"Only gigachads should be in charge of counting. Please start again from 1. The high score is {highest_count}."
-    if is_repeated:
-        full_text += f"A user cannot count twice in a row. {suffix_text}"
-    else:
-        full_text += f"That's not the right number, it should have been {current_count + 1}. {suffix_text}"
-    # User ban logic
-    average_count = calculate_average_count_of_guild(guild_id)
-    current_user_minutes_ban = calculate_user_penalization(current_count, average_count, message.content)
-    if current_user_minutes_ban > 0:
-        ban_user(message.author.id, guild_id, current_user_minutes_ban)
-        current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
-        full_text += f" Moreover, because you messed up, you are now banned for {current_user_ban_string}."
-        if current_user_minutes_ban > maximum_ban:
-            full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
-    # End of user ban logic
-    await message.reply(full_text)
-    additional_reactions = ["🇳", "🇴"]
-    for r in additional_reactions:
-        await message.add_reaction(r)
+async def handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount=None):
+    """Sends the correct error message to the user for counting incorrectly.
+    No value for 'pass_doublecount' entered means that it is not a double count."""
+    if pass_doublecount == None or pass_doublecount == False: # Only check incorrect counting if passing double counting allowed
+        incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
+        for r in incorrect_reactions:
+            await message.add_reaction(r)
+        guild_data[guild_id]["previous_counts"].append(current_count) # Save the count
+        guild_data[guild_id]["current_count"] = 0 # Reset count to 0
+        guild_data[guild_id]["previous_user"] = None # Reset previous user to no one so anyone can count again
+        guild_data[guild_id]["previous_message"] = None # Reset timer of previous message for the bot catch up code
+        guild_data[guild_id]["users"][message.author.id]["incorrect_counts"] += 1 # Save incorrect count for the user
+        full_text = f"What a beta move by {message.author.mention}. "
+        suffix_text = f"Only gigachads should be in charge of counting. Please start again from 1. The high score is {highest_count}."
+        if pass_doublecount == None: # Not a double count
+            full_text += f"That's not the right number, it should have been {current_count + 1}. {suffix_text}"
+        else: # Is a double count
+            full_text += f"A user cannot count twice in a row. {suffix_text}"
+        # User ban logic
+        banning = guild_data[guild_id]["s_banning"]
+        if banning:
+            average_count = calculate_average_count_of_guild(guild_id)
+            message_count = message.content # What the value was the user sent in the message
+            minimum_ban = guild_data[guild_id]["s_minimum_ban"]
+            maximum_ban = guild_data[guild_id]["s_maximum_ban"]
+            ban_range = guild_data[guild_id]["s_ban_range"]
+            troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
+            current_user_minutes_ban = calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier, message_count)
+            if current_user_minutes_ban > 0:
+                ban_user(message.author.id, guild_id, current_user_minutes_ban)
+                current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
+                full_text += f" Moreover, because you messed up, you are now banned for {current_user_ban_string}."
+                if current_user_minutes_ban > maximum_ban:
+                    full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
+        # End of user ban logic
+        await message.reply(full_text)
+    else: # Pass/do nothing if passing of double counting is allowed
+        pass
 
 def calculate_average_count_of_guild(guild_id):
     """Calculates the mean of the previous_counts in a certain guild_id and returns 0 if there aren't any."""
@@ -253,7 +272,7 @@ def calculate_average_count_of_guild(guild_id):
     else:
         return 0
 
-def calculate_user_penalization(current_count, average_count, message_count="", minimum_ban=1, maximum_ban=120, range=1.1, troll_amplifier=7):
+def calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier, message_count=""):
     """Calculates how long a user should be banned based on an exponential curve around the average count. 
     The further the current count is from the average count, the higher the ban time will be. 
     The ban time will be at least the minimum_ban time and capped at the maximum_ban time.
@@ -267,9 +286,9 @@ def calculate_user_penalization(current_count, average_count, message_count="", 
         average_count_int = current_count
     # Math to calculate the ban time based on the average count and the current count
     difference_from_average = abs(current_count - average_count)
-    minutes_ban = math.pow(range, difference_from_average)
+    minutes_ban = math.pow(ban_range, difference_from_average)
     # Return the ban time in minutes
-    if current_count * 7 < average_count_int: # Penalize hard if the entered count is more than 10x off from the actual count
+    if current_count * 7 < average_count_int: # Penalize hard if the entered count is more than 7x off from the actual count
         return maximum_ban * troll_amplifier
     elif minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
         return round(minutes_ban)
@@ -302,19 +321,183 @@ def minutes_to_fancy_string(minutes, short = False):
     else:
         return (f"{minutes}{minutes_text}")
 
-@bot.tree.command(name="setchannel", description="Administratos only: sets the channel where the bot needs to keep track of counting.")
+@bot.tree.command(name="setchannel", description="Admins only: sets the channel for ChadCounting to the current channel.")
 async def setchannel(interaction: discord.Integration):
     try:
         if interaction.user.guild_permissions.administrator:
             global guild_dat
             guild_data[interaction.guild.id]["counting_channel"] = interaction.channel_id
             write_guild_data(guild_data)
-            await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.")
+            await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.", ephemeral=True)
         else:
             await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
     except Exception:
         error = traceback.format_exc()
         await interaction.response.send_message(f"An error occured setting the channel. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
+
+@bot.tree.command(name="setbanning", description="Admins only: configure the banning settings. No parameters gives current settings.")
+@app_commands.describe(banning = "Enable or disable banning altogether. Default: True",
+                       minimum_ban = "The minimum (or lowest) ban duration in minutes. Default: 1",
+                       maximum_ban = "The maximum (or highest) ban duration in minutes. Default: 120",
+                       ban_range = "The range/width of the exponentional banning curve. Lower values mean a wider curve. Default: 1.1",
+                       troll_amplifier = "How much harder than the maximum ban duration a troll should be penalized for. Default: 7",
+                       pass_doublecount = "Double counting by same user will be ignored (enabled) or penalized (disabled). Default: False")
+async def setbanning(interaction: discord.Integration, banning: bool=None,
+                                                      minimum_ban: int=None,
+                                                      maximum_ban: int=None,
+                                                      ban_range: float=None,
+                                                      troll_amplifier: int=None,
+                                                      pass_doublecount: bool=None):
+    try:
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Sorry, you don't have the rights to change the banning settings.", ephemeral=True)
+        else:
+            global guild_data
+            guild_id = interaction.guild.id
+            configure = False # Check if any of the parameters have been entered
+            changes_string = "\nNo changes were made to the banning settings. Try again, chad."
+            if banning != None:
+                configure = True
+                guild_data[guild_id]["s_banning"] = banning
+            if minimum_ban != None:
+                if maximum_ban != None:
+                    s_maximum_ban = maximum_ban
+                else:
+                    s_maximum_ban = guild_data[guild_id]["s_maximum_ban"]
+                if minimum_ban < 0:
+                    full_text = f"You can't set the minimum ban minutes lower than 0.{changes_string}"
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                elif minimum_ban > s_maximum_ban:
+                    full_text = ("You can't set the minimum ban duration higher than the maximum ban duration.\n" +
+                                f"You tried to configure {minimum_ban} for the minimum duration and {s_maximum_ban} for the maximum duration.{changes_string}")
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_minimum_ban"] = minimum_ban
+            if maximum_ban != None:
+                if minimum_ban != None:
+                    s_minimum_ban = minimum_ban
+                else:
+                    s_minimum_ban = s_maximum_ban = guild_data[guild_id]["s_minimum_ban"]
+                if maximum_ban < s_minimum_ban:
+                    full_text = ("You can't set the maximum ban duration lower than the minimum ban duration.\n" +
+                                f"You tried to configure {s_minimum_ban} for the minimum duration and {maximum_ban} for the maximum duration.{changes_string}")
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_maximum_ban"] = maximum_ban
+            if ban_range != None:
+                if ban_range < 1.05:
+                    full_text = f"The banning range/width should be more than 1.05. You entered {ban_range}.{changes_string}"
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_ban_range"] = ban_range
+            if troll_amplifier != None:
+                if troll_amplifier < 1 or troll_amplifier > 1337:
+                    full_text = f"You must enter a troll amplifier between 1 and 1337. You entered {troll_amplifier}.{changes_string}"
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
+            if pass_doublecount != None:
+                configure = True
+                guild_data[guild_id]["s_pass_doublecount"] = pass_doublecount
+            s_banning = guild_data[guild_id]["s_banning"]
+            s_minimum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_minimum_ban"])
+            s_maximum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_maximum_ban"])
+            s_ban_range = guild_data[guild_id]["s_ban_range"]
+            s_troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
+            s_pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
+            setting_string = (f"```Banning enabled: {s_banning}\n" +
+                            f"Minimum ban duration: {s_minimum_ban}\n" +
+                            f"Maximum ban duration: {s_maximum_ban}\n" +
+                            f"Ban range/width: exponent of {s_ban_range} squared\n" +
+                            f"Troll amplifier: {s_troll_amplifier}x\n" +
+                            f"Ignoring of double counts: {s_pass_doublecount}```")
+            if configure:
+                write_guild_data(guild_data)
+                full_text = f"Successfully changed the banning settings to the following:\n{setting_string}"
+            else:
+                full_text = f"Here you go, the current banning settings:\n{setting_string}"
+            await interaction.response.send_message(full_text, ephemeral=True)
+    except Exception:
+        error = traceback.format_exc()
+        await interaction.response.send_message(f"An error occured obtaining or changing the banning settings. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
+
+@bot.tree.command(name="setreactions", description="Admins only: configure the correct/incorrect count reactions. No parameters gives current settings.")
+@app_commands.describe(correct_reaction = "A single emoji the bot will react with when someome counted correctly. Default: 🙂",
+                       incorrect_reactions = "One or more emoji the bot will react with when someone messes up the count. Default: 💀")
+async def setreactions(interaction: discord.Integration, correct_reaction: str=None,
+                                                      incorrect_reactions: str=None):
+    try:
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Sorry, you don't have the rights to change the bot reactions.", ephemeral=True)
+        else:
+            global guild_data
+            guild_id = interaction.guild.id
+            configure = False # Check if any of the parameters have been entered
+            changes_string = "\nNo changes were made to the reactions. Try again, chad."
+            if correct_reaction != None:
+                converted_string = extract_discord_emojis(correct_reaction)
+                converted_string_len = len(converted_string)
+                if converted_string_len != 1:
+                    full_text = f"Please enter at least and no more than 1 emoji. You entered {converted_string_len} emoji.{changes_string}"
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_correct_reaction"] = converted_string[0]
+            if incorrect_reactions != None:
+                converted_string = extract_discord_emojis(incorrect_reactions)
+                converted_string_len = len(converted_string)
+                if converted_string_len < 1 or converted_string_len > 10:
+                    full_text = f"Please enter no less than 1 and no more than 10 emoji. You entered {converted_string_len} emoji.{changes_string}"
+                    await interaction.response.send_message(full_text, ephemeral=True)
+                    return
+                else:
+                    configure = True
+                    guild_data[guild_id]["s_incorrect_reaction"] = converted_string
+            s_correct_reaction = guild_data[guild_id]["s_correct_reaction"]
+            s_incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
+            setting_string = (f"> Correct count reaction: {s_correct_reaction}\n" +
+                            f"> Incorrect count reaction(s): {''.join(str(i) for i in s_incorrect_reactions)}\n")
+            if configure:
+                write_guild_data(guild_data)
+                full_text = f"Successfully changed the reactions to the following:\n{setting_string}"
+            else:
+                full_text = f"Here you go, the current reactions:\n{setting_string}"
+            await interaction.response.send_message(full_text, ephemeral=True)
+    except Exception:
+        error = traceback.format_exc()
+        await interaction.response.send_message(f"An error occured obtaining or changing the reactions. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
+
+def extract_discord_emojis(text):
+    """Extracts unicode and custom emoji into a list, preserving order."""
+    emoji_list = []
+    # Unicode emoji pattern
+    pattern = re.compile("["
+        u"\U0001f600-\U0001f64f"  # Emoticons
+        u"\U0001f300-\U0001f5ff"  # Symbols & pictographs
+        u"\U0001f680-\U0001f6ff"  # Transport & map symbols
+        u"\U0001f1e0-\U0001f1ff"  # Flags (iOS)
+                           "]+", flags=re.UNICODE)
+    # Custom emoji pattern
+    custom_emoji_pattern = re.compile(r"<a?:[a-zA-Z0-9_]+:[0-9]+>")
+    # Find all unicode and custom emojis in the text
+    for match in pattern.finditer(text):
+        emoji_list.append((match.group(0), match.start()))
+    for match in custom_emoji_pattern.finditer(text):
+        emoji_list.append((match.group(0), match.start()))
+    # Sort the emojis based on their indices
+    emoji_list.sort(key=lambda x: x[1])
+    # Return just the emojis
+    return [emoji[0] for emoji in emoji_list]
 
 @bot.tree.command(name="currentcount", description="Gives the current count in case you're unsure or want to double check.")
 async def currentcount(interaction: discord.Integration):
@@ -340,10 +523,10 @@ async def highscore(interaction: discord.Integration):
             points += 1
         full_text += f"On average you lads counted to {average_count}, and your current count is "
         if current_count > average_count:
-            full_text += f"{current_count - average_count} higher than the average. "
+            full_text += f"{round(current_count - average_count), 2} higher than the average. "
             points += 2
         elif current_count < average_count:
-            full_text += f"{average_count - current_count} lower than the average... "
+            full_text += f"{round(average_count - current_count), 2} lower than the average... "
         else:
             full_text += "exactly the same as the average. "
             points += 1
@@ -364,17 +547,24 @@ async def highscore(interaction: discord.Integration):
 async def banrate(interaction: discord.Integration):
     try:
         global guild_data
-        first_message = "Here you go, the current ban rate, you chad:\n```"
+        guild_id = interaction.guild.id
+        banning = guild_data[guild_id]["s_banning"]
+        if banning:
+            first_message = "Banning is currently enabled, beware! Here's the current banrate, you chad:\n```"
+        else:
+            first_message = "Banning is currently disabled, however, if it were enabled, here's the banrate:\n```"
         consecutive_message = "Here's the continuation of the previous ban rate levels:\n```"
         ban_levels_list = [first_message]
         current_count = 0 # Start at calculating the count from 0
         message_index = 0 # Since there is a 2000 character message limit on Discord
-        average_count = calculate_average_count_of_guild(interaction.guild.id)
-        minimum_ban = 1
-        maximum_ban = 120
+        average_count = calculate_average_count_of_guild(guild_id)
+        minimum_ban = guild_data[guild_id]["s_minimum_ban"]
+        maximum_ban = guild_data[guild_id]["s_maximum_ban"]
+        ban_range = guild_data[guild_id]["s_ban_range"]
+        troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
         current_level = maximum_ban / 2 # Arbritrary level to simulate a do/while loop
-        while current_level >= minimum_ban and current_level < maximum_ban:
-            current_level = calculate_user_penalization(current_count, average_count)
+        while current_count <= average_count or current_level >= minimum_ban and current_level < maximum_ban:
+            current_level = calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier)
             current_level_fancy = minutes_to_fancy_string(current_level, True)
             ban_level_string = f"Count {current_count}: {current_level_fancy} ban\n"
             if not len(ban_levels_list[message_index]) + len(ban_level_string) + 3 <= 2000: # 3 for the ```code block
@@ -383,7 +573,7 @@ async def banrate(interaction: discord.Integration):
                 ban_levels_list.append(consecutive_message)
             ban_levels_list[message_index] += ban_level_string
             current_count += 1
-        ban_levels_list[message_index] += f"```\nMessing up at any later counts will result in a ban of {current_level_fancy}."
+        ban_levels_list[message_index] += f"```Messing up at any later counts will result in a ban of {current_level_fancy}."
         for index, level in enumerate(ban_levels_list):
             if index == 0:
                 await interaction.response.send_message(level, ephemeral=True)
@@ -411,7 +601,17 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
             incorrect_counts = guild_data[guild_id]["users"][user_id]["incorrect_counts"]
             total_counts = correct_counts + incorrect_counts
             if total_counts > 0:
-                percent_correct = f"{round((correct_counts / (total_counts)) * 100)}%"
+                percent_correct = round((correct_counts / (total_counts)) * 100)
+                thresholds = {99: "What an absolute gigachad.",
+                              95: "Chad performance.",
+                              90: "Not bad, not good.",
+                              80: "Nearing beta performance. Do better.",
+                              70: "Definitely not chad performance."}
+                chad_or_not = "Full beta performance. Become chad." # Default value if lower than lowest threshold
+                for threshold, message in thresholds.items():
+                    if percent_correct >= threshold:
+                        chad_or_not = message
+                        break
             else:
                 percent_correct = "N/A"
             active_in_guilds = 0
@@ -421,12 +621,13 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
         else:
             await interaction.response.send_message(f"{username} has not participated in ChadCounting yet. Shame.")
         # End of defining statistics
-        full_text = (f"Here you go, the counting stats of {username}.\n```" +
+        full_text = (f"Here you go, the counting statistics of {username}.\n```" +
                      f"Correct counts: {correct_counts}\n" +
                      f"Incorrect counts: {incorrect_counts}\n" + 
                      f"Total counts: {total_counts}\n" +
-                     f"Percent correct: {percent_correct}\n" +
-                     f"Active in guilds: {active_in_guilds}```")
+                     f"Percent correct: {percent_correct}%\n" +
+                     f"Active in guilds: {active_in_guilds}```" +
+                     f"{chad_or_not}")
         await interaction.response.send_message(full_text)
     except Exception:
         error = traceback.format_exc()
