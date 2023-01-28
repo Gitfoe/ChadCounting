@@ -705,6 +705,26 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
         await interaction.response.send_message(full_text)
     except Exception:
         await command_exception(interaction)
+
+@bot.tree.command(name="serverstats", description="Gives counting statistics of this Discord server.")
+async def serverstats(interaction: discord.Integration):
+    try:
+        if not await check_correct_channel(interaction):
+            return
+        global guild_data
+        guild_id = interaction.guild.id
+        users = guild_data[guild_id]["users"]
+        user_list = [(user_id, user_data["correct_counts"], user_data["incorrect_counts"]) for user_id, user_data in users.items()]
+        sorted_user_list = sorted(user_list, key=lambda x: (x[1] + x[2], x[1]), reverse=True)
+        full_text = "Here you go chad, the server statistics:\n"
+        for i, user in enumerate(sorted_user_list[:10]):
+            user_id, correct_counts, incorrect_counts = user
+            user_id = await bot.fetch_user(user_id)
+            total_counts = correct_counts + incorrect_counts
+            full_text += f"> {i+1}. {user_id} - {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
+        await interaction.response.send_message(full_text)
+    except Exception:
+        await command_exception(interaction)
 #endregion
 
 bot.run(TOKEN)
