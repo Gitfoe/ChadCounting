@@ -372,7 +372,12 @@ async def check_correct_channel(interaction):
     global guild_data
     counting_channel = guild_data[interaction.guild.id]["counting_channel"]
     if interaction.channel.id != counting_channel:
-        channel_error = f"You can only execute ChadCounting commands in the counting channel, which is '{counting_channel}'."
+        channel_error = f"You can only execute ChadCounting commands in the counting channel, "
+        channel = next((channel for channel in interaction.guild.text_channels if channel.id == counting_channel), None)
+        if channel is not None:
+            channel_error += f"which is '{channel.name}'."
+        else:
+            channel_error += "however, it doesn't exist anymore. Contact your server admin if you believe this is an error."
         await interaction.response.send_message(channel_error, ephemeral=True)
         return False
     elif counting_channel == None:
