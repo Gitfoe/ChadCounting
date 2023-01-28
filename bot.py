@@ -185,21 +185,23 @@ def init_guild_data():
         raise Exception("There was an error decoding guild_data.json.")
     finally:
         if dev_mode:
-            add_guild_to_guild_data(dev_mode_guild_id, update_guild_data)
-            for user_id in guild_data[dev_mode_guild_id]["users"]:
-                add_user_in_guild_data_json(user_id, dev_mode_guild_id, update_guild_data)
+            add_or_update_new_guild_data(dev_mode_guild_id)
         else:
             for guild in bot.guilds:
-                add_guild_to_guild_data(guild.id, update_guild_data)
-                if update_guild_data:
-                    for user_id in guild_data[guild.id]["users"]:
-                        add_user_in_guild_data_json(user_id, guild.id, update_guild_data)
+                add_or_update_new_guild_data(guild.id)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
+
+def add_or_update_new_guild_data(guild_id):
+    """Adds new guilds and/or users to guild_data and updates them if needed."""
+    global update_guild_data
+    add_guild_to_guild_data(guild_id, update_guild_data)
+    if update_guild_data:
+        for user_id in guild_data[guild_id]["users"]:
+            add_user_in_guild_data_json(user_id, guild_id, update_guild_data)
 
 def write_guild_data(guild_data, backup=False):
     """Writes the dictionary guild_data to guild_data.json.
     Optional backup parameter forces a backup filename format."""
-    file = "guild_data.json"
     if backup:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         file = f"{file}.bak{timestamp}"
@@ -210,6 +212,8 @@ def write_guild_data(guild_data, backup=False):
             pass # Continue if file doesn't exist
         except Exception as e:
             print(e)
+    else:
+        file = "guild_data.json"
     with open(file, "w") as f:
         json.dump(guild_data, f, cls=DateTimeEncoder)
 
@@ -302,14 +306,16 @@ def calculate_user_penalization(current_count, average_count, minimum_ban, maxim
     # Convert string of message into integer, or the current_count if no numbers are found
     match = re.match(r'^\d+', message_count)
     if match:
-        average_count_int = int(match.group())
+        message_count_int = int(match.group())
     else:
-        average_count_int = current_count
+        message_count_int = current_count
     # Math to calculate the ban time based on the average count and the current count
     difference_from_average = abs(current_count - average_count)
+    difference_from_current = abs(current_count - message_count_int)
     minutes_ban = math.pow(ban_range, difference_from_average)
     # Return the ban time in minutes
-    if current_count * 7 < average_count_int: # Penalize hard if the entered count is more than 7x off from the actual count
+    if difference_from_current > 72 and current_count * 7 < message_count_int:
+        # Penalize hard if the entered count is more than 7x or 72 off from the actual count
         return maximum_ban * troll_amplifier
     elif minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
         return round(minutes_ban)
@@ -435,11 +441,11 @@ async def setchannel(interaction: discord.Integration):
                        troll_amplifier = "How much harder than the maximum ban duration a troll should be penalized for. Default: 7",
                        pass_doublecount = "Double counting by same user will be ignored (enabled) or penalized (disabled). Default: False")
 async def setbanning(interaction: discord.Integration, banning: bool=None,
-                                                      minimum_ban: int=None,
-                                                      maximum_ban: int=None,
-                                                      ban_range: float=None,
-                                                      troll_amplifier: int=None,
-                                                      pass_doublecount: bool=None):
+                                                       minimum_ban: int=None,
+                                                       maximum_ban: int=None,
+                                                       ban_range: float=None,
+                                                       troll_amplifier: int=None,
+                                                       pass_doublecount: bool=None):
     try:
         if not await check_correct_channel(interaction):
             return
@@ -508,12 +514,12 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
             s_ban_range = guild_data[guild_id]["s_ban_range"]
             s_troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
             s_pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
-            setting_string = (f"```Banning enabled: {s_banning}\n" +
-                            f"Minimum ban duration: {s_minimum_ban}\n" +
-                            f"Maximum ban duration: {s_maximum_ban}\n" +
-                            f"Ban range/width: exponent of {s_ban_range} squared\n" +
-                            f"Troll amplifier: {s_troll_amplifier}x\n" +
-                            f"Ignoring of double counts: {s_pass_doublecount}```")
+            setting_string = (f"> Banning enabled: {s_banning}\n" +
+                              f"> Minimum ban duration: {s_minimum_ban}\n" +
+                              f"> Maximum ban duration: {s_maximum_ban}\n" +
+                              f"> Ban range/width: exponent of {s_ban_range} squared\n" +
+                              f"> Troll amplifier: {s_troll_amplifier}x\n" +
+                              f"> Ignoring of double counts: {s_pass_doublecount}")
             if configure:
                 write_guild_data(guild_data)
                 full_text = f"Successfully changed the banning settings to the following:\n{setting_string}"
@@ -527,7 +533,7 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
 @app_commands.describe(correct_reactions = "One or more emoji the bot will react with when someome counted correctly. Default: 🙂",
                        incorrect_reactions = "One or more emoji the bot will react with when someone messes up the count. Default: 💀")
 async def setreactions(interaction: discord.Integration, correct_reactions: str=None,
-                                                      incorrect_reactions: str=None):
+                                                       incorrect_reactions: str=None):
     try:
         if not await check_correct_channel(interaction):
             return
@@ -546,10 +552,11 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
                 response = await handle_reaction_setting(interaction, incorrect_reactions)
                 if response == None:
                     return
+                guild_data[guild_id]["s_incorrect_reaction"] = response    
             s_correct_reactions = guild_data[guild_id]["s_correct_reaction"]
             s_incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
             setting_string = (f"> Correct count reaction(s): {''.join(str(i) for i in s_correct_reactions)}\n" +
-                            f"> Incorrect count reaction(s): {''.join(str(i) for i in s_incorrect_reactions)}\n")
+                              f"> Incorrect count reaction(s): {''.join(str(i) for i in s_incorrect_reactions)}\n")
             if configure:
                 write_guild_data(guild_data)
                 full_text = f"Successfully changed the reactions to the following:\n{setting_string}"
