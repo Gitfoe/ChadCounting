@@ -74,7 +74,7 @@ async def check_count_message(message):
     if message.author == bot.user or dev_mode and not message.guild.id == dev_mode_guild_id:
         return
     # Checks if the message is sent in counting channel and starts with a number
-    elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and message.content[0].isnumeric():
+    elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and len(message.content) > 0 and message.content[0].isnumeric():
         # Declare variables for later use
         guild_id = message.guild.id
         current_user = message.author.id
@@ -202,6 +202,7 @@ def add_or_update_new_guild_data(guild_id):
 def write_guild_data(guild_data, backup=False):
     """Writes the dictionary guild_data to guild_data.json.
     Optional backup parameter forces a backup filename format."""
+    file = "guild_data.json"
     if backup:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         file = f"{file}.bak{timestamp}"
@@ -212,8 +213,6 @@ def write_guild_data(guild_data, backup=False):
             pass # Continue if file doesn't exist
         except Exception as e:
             print(e)
-    else:
-        file = "guild_data.json"
     with open(file, "w") as f:
         json.dump(guild_data, f, cls=DateTimeEncoder)
 
