@@ -424,7 +424,10 @@ async def setchannel(interaction: discord.Integration):
     try:
         if interaction.user.guild_permissions.administrator:
             global guild_dat
-            guild_data[interaction.guild.id]["counting_channel"] = interaction.channel_id
+            guild_id = interaction.guild.id
+            guild_data[guild_id]["counting_channel"] = interaction.channel_id
+            if guild_data[guild_id]["previous_message"] == None: # Set last message to now if no message has ever been recorded
+                guild_data[guild_id]["previous_message"] = datetime.now()
             write_guild_data(guild_data)
             await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.", ephemeral=True)
         else:
