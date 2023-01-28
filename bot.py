@@ -16,9 +16,9 @@ from discord.ext import commands
 
 #region Initialisation
 # For developing only
-dev_mode = True # Make the bot only active in a certain guild
+dev_mode = False # Make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already
-update_guild_data = True # Forces updating of newly added guild_data values after a ChadCounting update
+update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
 # Initialize variables from environment tables
 load_dotenv()
@@ -373,7 +373,7 @@ async def check_correct_channel(interaction):
     counting_channel = guild_data[interaction.guild.id]["counting_channel"]
     if interaction.channel.id != counting_channel:
         channel_error = f"You can only execute ChadCounting commands in the counting channel, "
-        channel = next((channel for channel in interaction.guild.text_channels if channel.id == counting_channel), None)
+        channel = interaction.guild.get_channel(counting_channel)
         if channel is not None:
             channel_error += f"which is '{channel.name}'."
         else:
@@ -434,7 +434,7 @@ async def setchannel(interaction: discord.Integration):
             if guild_data[guild_id]["previous_message"] == None: # Set last message to now if no message has ever been recorded
                 guild_data[guild_id]["previous_message"] = datetime.now()
             write_guild_data(guild_data)
-            await interaction.response.send_message(f"The channel for ChadCounting has been set to {interaction.channel}.", ephemeral=True)
+            await interaction.response.send_message(f"The channel for ChadCounting has been set to '{interaction.channel}'.", ephemeral=True)
         else:
             await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
     except Exception:
@@ -588,9 +588,11 @@ async def highscore(interaction: discord.Integration):
     try:
         if not await check_correct_channel(interaction):
             return
-        highest_count = guild_data[interaction.guild.id]["highest_count"]
-        current_count = guild_data[interaction.guild.id]["current_count"]
-        average_count = round(calculate_average_count_of_guild(interaction.guild.id), 2)
+        guild_id = interaction.guild.id
+        highest_count = guild_data[guild_id]["highest_count"]
+        current_count = guild_data[guild_id]["current_count"]
+        average_count = round(calculate_average_count_of_guild(guild_id), 2)
+        amount_of_attempts = len(guild_data[guild_id]["previous_counts"])
         full_text = f"The high score is {highest_count}. "
         points = 0 # Points get calculated for the last suffix.
         if highest_count > current_count:
@@ -607,6 +609,11 @@ async def highscore(interaction: discord.Integration):
         else:
             full_text += "exactly the same as the average. "
             points += 1
+        full_text += f"You lads messed up the count {amount_of_attempts} "
+        if amount_of_attempts == 1:
+            full_text += "time. "
+        else:
+            full_text += "times. "
         if points == 0:
             full_text += "Do better, beta's."
         elif points == 1:
@@ -733,3 +740,4 @@ async def serverstats(interaction: discord.Integration):
 #endregion
 
 bot.run(TOKEN)
+# Coded by https://github.com/Gitfoe
