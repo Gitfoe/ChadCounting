@@ -29,6 +29,7 @@ The following commands could be used:
 - `/currentcount`: checks the current count in case you're unsure if the count is still correct.
 - `/highscore`: shows the current high score and the average.
 - `/userstats`: gives counting statistics of a user.
+- `/serverstats`: counting statistics of all users in the server.
 - `/banrate`: shows how hard you will be penalized for making a mistake at the different counts.
 
 ## Technical information
