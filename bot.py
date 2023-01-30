@@ -16,19 +16,20 @@ from discord.ext import commands
 
 #region Initialisation
 # For developing only
-dev_mode = False # Make the bot only active in a certain guild
+dev_mode = True # Make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already
 update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
 # Initialize variables from environment tables
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
+TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
+DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 
 # Initialize bot and intents
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='/', help_command=None, intents=intents)
 #endregion
 
 #region Bot events
@@ -45,7 +46,7 @@ async def on_ready():
     else:
         for guild in bot.guilds:
             await check_for_missed_counts(guild.id)
-    print("ChadCounting is ready.")
+    print(f"ChadCounting is ready.")
 
 @bot.event
 async def on_message(message):
@@ -424,6 +425,17 @@ async def command_exception(interaction):
 #endregion
 
 #region Discord commands
+@bot.tree.command(name="chadhelp", description="Gives information about the bot's commands.")
+async def currentcount(interaction: discord.Integration):
+    try:
+        embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=0xCA93FF)
+        embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type '/' in the chat and see all the commands ChadCounting has to offer.", inline=False)
+        embed.add_field(name="More information", value="For more information about this bot, go to [the GitHub page.](https://github.com/Gitfoe/ChadCounting)", inline=False)
+        embed.set_footer(text=f"ChadCounting by {await bot.fetch_user('134376288348667904')}")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    except Exception:
+        await command_exception(interaction)
+
 @bot.tree.command(name="setchannel", description="Admins only: sets the channel for ChadCounting to the current channel.")
 async def setchannel(interaction: discord.Integration):
     try:
@@ -739,5 +751,5 @@ async def serverstats(interaction: discord.Integration):
         await command_exception(interaction)
 #endregion
 
-bot.run(TOKEN)
+bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe

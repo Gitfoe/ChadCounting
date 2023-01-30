@@ -43,14 +43,17 @@ pip install -U emoji (v2.2.0)
 When creating your own fork of ChadCounting, ensure your bot has the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. The scope should be `bot`.
 
 ### Dev-mode
-In the 'Initialisation' region of the bot.py file, you can enable `dev_mode` to make testing real-world scenarios easier. With dev-mode, you can configure the bot to be only active in one (testing) guild. This way, you don't affect production guilds with beta code.
+In the 'Initialisation' section of the bot.py file, the dev_mode can be enabled to facilitate the testing of real-world scenarios. By enabling dev-mode, the bot can be configured to operate solely within a designated (testing) guild, thus preventing beta code from impacting production guilds. It is recommended to have two separate Discord bots, one for production and one for development, to safely test new code without putting the production environment at risk.
+
+[Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=67648&scope=bot)
 
 ### Updating the database
 After changing values in the database, the current guilds need to be updated to corrospond to the new database values. Ensure to enable `update_guild_data` in the 'Initialisation' region of the bot.py file. The script will automatically create a backup of guild_data before updating. After updating and seeing `ChadCounting is ready` in the terminal, you can dissable updating again.
 
 ### Environment tables
-For security purposes, in the root of the ChadCounting bot folder (in the same folder as `bot.py`), create a `.env` file. Add the token of your Discord bot like this:
+For added security and to comply by Discord's ToS, create a .env file in the root directory of the ChadCounting bot folder (where bot.py is located). This file serves as the designated location to securely store bot tokens. To add your Discord bot tokens, follow the example below:
 ```
 # .env
 DISCORD_TOKEN=your_discord_bot_token
+DEV_TOKEN=your_discord_dev_bot_token
 ```
