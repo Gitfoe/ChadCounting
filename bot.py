@@ -500,15 +500,16 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
             return
         if not await check_correct_channel(interaction):
             return
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("Sorry, you don't have the rights to change the banning settings.", ephemeral=True)
         else:
             global guild_data
             guild_id = interaction.guild.id
-            configure = False # Check if any of the parameters have been entered
             changes_string = "\nNo changes were made to the banning settings. Try again, chad."
+            # Check if any of the parameters have been entered
+            configure = all(v is not None for v in (banning, minimum_ban, maximum_ban, ban_range, troll_amplifier, pass_doublecount))
+            if configure and not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("Sorry, you don't have the rights to change the banning settings.", ephemeral=True)
+                return
             if banning != None:
-                configure = True
                 guild_data[guild_id]["s_banning"] = banning
             if minimum_ban != None:
                 if maximum_ban != None:
@@ -525,7 +526,6 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
                 else:
-                    configure = True
                     guild_data[guild_id]["s_minimum_ban"] = minimum_ban
             if maximum_ban != None:
                 if minimum_ban != None:
@@ -538,7 +538,6 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
                 else:
-                    configure = True
                     guild_data[guild_id]["s_maximum_ban"] = maximum_ban
             if ban_range != None:
                 if ban_range < 1.05:
@@ -546,7 +545,6 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
                 else:
-                    configure = True
                     guild_data[guild_id]["s_ban_range"] = ban_range
             if troll_amplifier != None:
                 if troll_amplifier < 1 or troll_amplifier > 1337:
@@ -554,10 +552,8 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
                 else:
-                    configure = True
                     guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
             if pass_doublecount != None:
-                configure = True
                 guild_data[guild_id]["s_pass_doublecount"] = pass_doublecount
             s_banning = guild_data[guild_id]["s_banning"]
             s_minimum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_minimum_ban"])
@@ -574,7 +570,7 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
             if configure:
                 write_guild_data(guild_data)
                 full_text = f"{interaction.user.name} changed the banning settings to the following:\n{setting_string}"
-                await interaction.response.send_message(full_text, ephemeral=True)
+                await interaction.response.send_message(full_text)
             else:
                 full_text = f"Here you go, the current banning settings:\n{setting_string}"
                 await interaction.response.send_message(full_text, ephemeral=True)
@@ -591,21 +587,23 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
             return
         if not await check_correct_channel(interaction):
             return
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("Sorry, you don't have the rights to change the bot reactions.", ephemeral=True)
         else:
             global guild_data
             guild_id = interaction.guild.id
-            configure = False # Check if any of the parameters have been entered
+            # Check if any of the parameters have been entered
+            configure = all(v is not None for v in (correct_reactions, incorrect_reactions))
+            if configure and not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message("Sorry, you don't have the rights to change the bot's reactions.", ephemeral=True)
+                return
             if correct_reactions != None:
                 response = await handle_reaction_setting(interaction, correct_reactions)
-                if response == None:
+                if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_correct_reaction"] = response
                 configure = True
             if incorrect_reactions != None:
                 response = await handle_reaction_setting(interaction, incorrect_reactions)
-                if response == None:
+                if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_incorrect_reaction"] = response
                 configure = True
