@@ -88,7 +88,8 @@ async def check_count_message(message):
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
         if banning and current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
-            await message.reply(f"You are still banned from counting for {current_user_ban_string}, you beta.")
+            await message.reply(f"{message.author.name}, you are still banned from counting for {current_user_ban_string}, you beta.\n" + 
+                                f"The current count stays on {current_count}. Other users can continue counting.")
         # End of ban logic
         else:
             if current_user != previous_user:
