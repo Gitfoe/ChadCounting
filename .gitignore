@@ -193,3 +193,4 @@ poetry.toml
 
 # Data used by the bot
 guild_data.json
+guild_data.json.*

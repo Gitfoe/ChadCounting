@@ -214,8 +214,24 @@ def write_guild_data(guild_data, backup=False):
             pass # Continue if file doesn't exist
         except Exception as e:
             print(e)
-    with open(file, "w") as f:
-        json.dump(guild_data, f, cls=DateTimeEncoder)
+    if is_jsonable(guild_data):
+        with open(file, "w") as f:
+            json.dump(guild_data, f, cls=DateTimeEncoder)
+    else:
+        file = "guild_data.json.err"
+        try:
+            with open(file, "w") as f:
+                json.dump(guild_data, f, cls=DateTimeEncoder)
+        except Exception as e:
+            print(f"Guild_data was not (completely) serializable. Tried to write to {file} instead.\nError:{e}")
+
+def is_jsonable(x):
+    """Checks if data X is json serializable."""
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
 
 def convert_keys_to_int(data):
     """Converts all keys in a dictionary and its nested dictionaries or lists to integers."""
@@ -247,14 +263,14 @@ def update_values(update_dict, values, guild_id, user_id=None):
             del update_dict[k]
             deleted += 1
     if added > 0 or changed > 0 or deleted > 0:
-        write_guild_data(copy_guild_data, True) # Force a backup because changes were made
-        write_guild_data(guild_data) # 
         full_text = f"Successfully added {added}, changed {changed}, and deleted {deleted} values "
         if user_id == None:
             full_text += f"for guild {guild_id}."
         else:
             full_text += f"for user {user_id} in guild {guild_id}."
         print(full_text)
+        write_guild_data(copy_guild_data, True) # Force a backup because changes were made
+        write_guild_data(guild_data)
 
 def add_guild_to_guild_data(guild_id, update=False):
     """Adds new guild to guild_data dictionary, or adds/changes/deletes values corrosponding to new values."""
@@ -276,8 +292,8 @@ def add_guild_to_guild_data(guild_id, update=False):
               "s_troll_amplifier": 7}
     if guild_id not in guild_data: 
         guild_data[guild_id] = values
+        print(f"New guild {guild_id} successfully added to dictionary.")
         write_guild_data(guild_data)
-        print(f"New guild {guild_id} successfully added.")
     elif update:
         update_values(guild_data[guild_id], values, guild_id)
 
@@ -290,8 +306,8 @@ def add_user_in_guild_data_json(user_id, guild_id, update=False):
               "incorrect_counts": 0}
     if user_id not in guild_data[guild_id]["users"]:
         guild_data[guild_id]["users"][user_id] = values 
-        write_guild_data(guild_data)
         (f"New user {user_id} successfully added to guild {guild_id}.")
+        write_guild_data(guild_data)
     elif update:
         update_values(guild_data[guild_id]["users"][user_id], values, guild_id, user_id)
 #endregion
@@ -425,7 +441,7 @@ async def command_exception(interaction):
 #endregion
 
 #region Discord commands
-@bot.tree.command(name="chadhelp", description="Gives information about the bot's commands.")
+@bot.tree.command(name="help", description="Gives information about ChadCounting.")
 async def currentcount(interaction: discord.Integration):
     try:
         embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=0xCA93FF)

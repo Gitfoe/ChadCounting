@@ -31,6 +31,7 @@ The following commands could be used:
 - `/userstats`: gives counting statistics of a user.
 - `/serverstats`: counting statistics of all users in the server.
 - `/banrate`: shows how hard you will be penalized for making a mistake at the different counts.
+- `/help`: gives information about ChadCounting.
 
 ## Technical information
 ### Dependencies
