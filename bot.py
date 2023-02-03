@@ -26,7 +26,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-3-2023-no1"
+bot_version = "Feb-3-2023-no2"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -461,7 +461,7 @@ async def currentcount(interaction: discord.Integration):
         embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=0xCA93FF)
         embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type `/` in the chat and see all the commands ChadCounting has to offer.", inline=False)
         embed.add_field(name="Rules", value="In this counting game, users take turns counting with the next number. Double counting by the same user is not allowed. You can use the command `/setbanning` to see this server's configured rules for incorrect counts.", inline=False)
-        embed.add_field(name="Counting feedback", value="After a user counts, the bot will respond with emoji to indicate if the count was correct or not. If the bot is unavailable (e.g. due to maintenance) and doesn't respond, you can still continue counting as it will catch up on missed counts upon its return.", inline=False)
+        embed.add_field(name="Counting feedback", value="After a user counts, the bot will respond with emoji to indicate if the count was correct or not. If the bot is unavailable (e.g. due to maintenance) and doesn't respond, you can still continue counting as it will catch up on missed counts upon its return. If you're unsure of the current recorded count, use the command `/currentcount` to check.", inline=False)
         embed.add_field(name="More information", value="For more information about this bot, go to [the GitHub page.](https://github.com/Gitfoe/ChadCounting)", inline=False)
         embed.set_footer(text=f"ChadCounting version {bot_version}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -474,7 +474,7 @@ async def setchannel(interaction: discord.Integration):
         if not await check_bot_ready(interaction):
             return
         if interaction.user.guild_permissions.administrator:
-            global guild_dat
+            global guild_data
             guild_id = interaction.guild.id
             guild_data[guild_id]["counting_channel"] = interaction.channel_id
             if guild_data[guild_id]["previous_message"] == None: # Set last message to now if no message has ever been recorded
@@ -500,9 +500,7 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                                                        troll_amplifier: int=None,
                                                        pass_doublecount: bool=None):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         else:
             global guild_data
@@ -587,9 +585,7 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
 async def setreactions(interaction: discord.Integration, correct_reactions: str=None,
                                                        incorrect_reactions: str=None):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         else:
             global guild_data
@@ -628,9 +624,7 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
 @bot.tree.command(name="currentcount", description="Gives the current count in case you're unsure or want to double check.")
 async def currentcount(interaction: discord.Integration):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         current_count = guild_data[interaction.guild.id]["current_count"]
         await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
@@ -640,9 +634,7 @@ async def currentcount(interaction: discord.Integration):
 @bot.tree.command(name="highscore", description="Gives the highest count that has been achieved in this Discord server.")
 async def highscore(interaction: discord.Integration):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         guild_id = interaction.guild.id
         highest_count = guild_data[guild_id]["highest_count"]
@@ -650,34 +642,29 @@ async def highscore(interaction: discord.Integration):
         average_count = round(calculate_average_count_of_guild(guild_id), 2)
         amount_of_attempts = len(guild_data[guild_id]["previous_counts"])
         full_text = f"The high score is {highest_count}. "
-        points = 0 # Points get calculated for the last suffix.
+        points = 0 # Points get calculated for the last suffix
         if highest_count > current_count:
             full_text += f"That's {highest_count - current_count} higher than the current count... "
         else:
             full_text += "That's exactly the same as the current count! "
-            points += 1
+            if highest_count >= 27: # Only award points if it's higher than or equal to 27
+                points += 1
         full_text += f"On average you lads counted to {average_count}, and your current count is "
         if current_count > average_count:
             full_text += f"{round(current_count - average_count, 2)} higher than the average. "
-            points += 2
+            points += 2 if average_count >= 27 else 1 # Award less points if average not at least 27
         elif current_count < average_count:
             full_text += f"{round(average_count - current_count, 2)} lower than the average... "
         else:
             full_text += "exactly the same as the average. "
-            points += 1
+            if average_count >= 27: # Only award points if average is higher than or equal to 27
+                points += 1
         full_text += f"You lads messed up the count {amount_of_attempts} "
-        if amount_of_attempts == 1:
-            full_text += "time. "
-        else:
-            full_text += "times. "
-        if points == 0:
-            full_text += "Do better, beta's."
-        elif points == 1:
-            full_text += "Decent work."
-        elif points == 2:
-            full_text += "Well done."
-        elif points >= 3:
-            full_text += "Excellent work, chads!"
+        full_text += "time. " if amount_of_attempts == 1 else "times. "
+        full_text += {0: "Do better, beta's.", 
+                      1: "Decent work.", 
+                      2: "Well done.", 
+                      3: "Excellent work, chads!"}.get(points, "")
         await interaction.response.send_message(full_text)
     except Exception:
         await command_exception(interaction)
@@ -685,9 +672,7 @@ async def highscore(interaction: discord.Integration):
 @bot.tree.command(name="banrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
 async def banrate(interaction: discord.Integration):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         global guild_data
         guild_id = interaction.guild.id
@@ -729,9 +714,7 @@ async def banrate(interaction: discord.Integration):
 @app_commands.describe(user = "Optional: the user you want to check the stats of.")
 async def userstats(interaction: discord.Integration, user: discord.Member=None):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         global guild_data
         guild_id = interaction.guild.id
@@ -781,9 +764,7 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
 @bot.tree.command(name="serverstats", description="Gives counting statistics of this Discord server.")
 async def serverstats(interaction: discord.Integration):
     try:
-        if not await check_bot_ready(interaction):
-            return
-        if not await check_correct_channel(interaction):
+        if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         global guild_data
         guild_id = interaction.guild.id
