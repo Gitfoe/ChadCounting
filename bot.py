@@ -16,7 +16,7 @@ from discord.ext import commands
 
 #region Initialisation
 # For developing only
-dev_mode = True # Make the bot only active in a certain guild
+dev_mode = False # Make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already
 update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
@@ -56,7 +56,7 @@ async def on_message(message):
 @bot.event
 async def on_guild_join(guild):
     """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
-    add_guild_to_guild_data(guild)
+    add_guild_to_guild_data(guild.id)
 #endregion                                               
 
 #region Counting logic
