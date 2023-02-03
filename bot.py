@@ -25,6 +25,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
+is_ready = False
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -46,6 +47,8 @@ async def on_ready():
     else:
         for guild in bot.guilds:
             await check_for_missed_counts(guild.id)
+    global is_ready        
+    is_ready = True
     print(f"ChadCounting is ready.")
 
 @bot.event
@@ -71,8 +74,8 @@ async def check_for_missed_counts(guild_id):
 async def check_count_message(message):
     """Checks if the user has counted correctly and reacts with an emoji if so."""
     global guild_data
-    # Ignores messages sent by ChadCounting, and if dev_mode is on, exit if message is not from dev mode guild
-    if message.author == bot.user or dev_mode and not message.guild.id == dev_mode_guild_id:
+    # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
+    if message.author.bot or dev_mode and not message.guild.id == dev_mode_guild_id:
         return
     # Checks if the message is sent in counting channel and starts with a number
     elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and len(message.content) > 0 and message.content[0].isnumeric():
@@ -229,7 +232,7 @@ def write_guild_data(guild_data, backup=False):
 def is_jsonable(x):
     """Checks if data X is json serializable."""
     try:
-        json.dumps(x)
+        json.dumps(x, cls=DateTimeEncoder)
         return True
     except (TypeError, OverflowError):
         return False
@@ -406,6 +409,14 @@ async def check_correct_channel(interaction):
     else:
         return True
 
+async def check_bot_ready(interaction):
+    """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
+    if not is_ready:
+        await interaction.response.send_message(f"ChadCounting is still starting up, please try again in a couple seconds!", ephemeral=True)
+        return is_ready
+    else:
+        return is_ready
+
 def extract_discord_emojis(text):
     """Extracts unicode and custom emojis into a list, preserving order."""
     emoji_list = []
@@ -456,6 +467,8 @@ async def currentcount(interaction: discord.Integration):
 @bot.tree.command(name="setchannel", description="Admins only: sets the channel for ChadCounting to the current channel.")
 async def setchannel(interaction: discord.Integration):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if interaction.user.guild_permissions.administrator:
             global guild_dat
             guild_id = interaction.guild.id
@@ -483,6 +496,8 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                                                        troll_amplifier: int=None,
                                                        pass_doublecount: bool=None):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         if not interaction.user.guild_permissions.administrator:
@@ -558,10 +573,11 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                               f"> Ignoring of double counts: {s_pass_doublecount}")
             if configure:
                 write_guild_data(guild_data)
-                full_text = f"Successfully changed the banning settings to the following:\n{setting_string}"
+                full_text = f"{interaction.user.name} changed the banning settings to the following:\n{setting_string}"
+                await interaction.response.send_message(full_text, ephemeral=True)
             else:
                 full_text = f"Here you go, the current banning settings:\n{setting_string}"
-            await interaction.response.send_message(full_text, ephemeral=True)
+                await interaction.response.send_message(full_text, ephemeral=True)
     except Exception:
         await command_exception(interaction)
 
@@ -571,6 +587,8 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
 async def setreactions(interaction: discord.Integration, correct_reactions: str=None,
                                                        incorrect_reactions: str=None):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         if not interaction.user.guild_permissions.administrator:
@@ -584,27 +602,32 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
                 if response == None:
                     return
                 guild_data[guild_id]["s_correct_reaction"] = response
+                configure = True
             if incorrect_reactions != None:
                 response = await handle_reaction_setting(interaction, incorrect_reactions)
                 if response == None:
                     return
-                guild_data[guild_id]["s_incorrect_reaction"] = response    
+                guild_data[guild_id]["s_incorrect_reaction"] = response
+                configure = True
             s_correct_reactions = guild_data[guild_id]["s_correct_reaction"]
             s_incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
             setting_string = (f"> Correct count reaction(s): {''.join(str(i) for i in s_correct_reactions)}\n" +
                               f"> Incorrect count reaction(s): {''.join(str(i) for i in s_incorrect_reactions)}\n")
             if configure:
                 write_guild_data(guild_data)
-                full_text = f"Successfully changed the reactions to the following:\n{setting_string}"
+                full_text = f"{interaction.user.name} changed ChadCounting's reactions to the following:\n{setting_string}"
+                await interaction.response.send_message(full_text)
             else:
                 full_text = f"Here you go, the current reactions:\n{setting_string}"
-            await interaction.response.send_message(full_text, ephemeral=True)
+                await interaction.response.send_message(full_text, ephemeral=True)
     except Exception:
         await command_exception(interaction)
 
 @bot.tree.command(name="currentcount", description="Gives the current count in case you're unsure or want to double check.")
 async def currentcount(interaction: discord.Integration):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         current_count = guild_data[interaction.guild.id]["current_count"]
@@ -615,6 +638,8 @@ async def currentcount(interaction: discord.Integration):
 @bot.tree.command(name="highscore", description="Gives the highest count that has been achieved in this Discord server.")
 async def highscore(interaction: discord.Integration):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         guild_id = interaction.guild.id
@@ -658,6 +683,8 @@ async def highscore(interaction: discord.Integration):
 @bot.tree.command(name="banrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
 async def banrate(interaction: discord.Integration):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         global guild_data
@@ -700,6 +727,8 @@ async def banrate(interaction: discord.Integration):
 @app_commands.describe(user = "Optional: the user you want to check the stats of.")
 async def userstats(interaction: discord.Integration, user: discord.Member=None):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         global guild_data
@@ -750,6 +779,8 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
 @bot.tree.command(name="serverstats", description="Gives counting statistics of this Discord server.")
 async def serverstats(interaction: discord.Integration):
     try:
+        if not await check_bot_ready(interaction):
+            return
         if not await check_correct_channel(interaction):
             return
         global guild_data
