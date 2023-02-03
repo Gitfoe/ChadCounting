@@ -20,12 +20,13 @@ dev_mode = False # Make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already
 update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
-# Initialize variables from environment tables
+# Initialize variables and load environment tables
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
+bot_version = "Feb-3-2023-no1"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -91,18 +92,12 @@ async def check_count_message(message):
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
         if banning and current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
-            await message.reply(f"{message.author.name}, you are still banned from counting for {current_user_ban_string}, you beta.\n" + 
+            await message.reply(f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta.\n" + 
                                 f"The current count stays on {current_count}. Other users can continue counting.")
         # End of ban logic
         else:
             if current_user != previous_user:
                 if message.content.startswith(str(current_count + 1)):
-                    guild_data[guild_id]["current_count"] += 1
-                    guild_data[guild_id]["users"][current_user]["correct_counts"] += 1
-                    guild_data[guild_id]["previous_user"] = current_user
-                    guild_data[guild_id]["previous_message"] = message.created_at
-                    if highest_count < current_count: # New high score
-                        guild_data[guild_id]["highest_count"] = current_count
                     # Acknowledge a correct count
                     correct_reactions = guild_data[guild_id]["s_correct_reaction"]
                     for r in correct_reactions:
@@ -110,6 +105,13 @@ async def check_count_message(message):
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
                     if str(current_count).find("69") != -1:
                         await message.add_reaction("💦")
+                    # Save new counting data
+                    guild_data[guild_id]["current_count"] += 1 # Current count increases by one
+                    guild_data[guild_id]["users"][current_user]["correct_counts"] += 1 # Correct count for user logged
+                    guild_data[guild_id]["previous_user"] = current_user # Previous user is now the user who counted
+                    guild_data[guild_id]["previous_message"] = message.created_at # Save datetime the message was sent
+                    if highest_count < current_count: # New high score
+                        guild_data[guild_id]["highest_count"] = current_count
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
             else:
@@ -457,9 +459,11 @@ async def command_exception(interaction):
 async def currentcount(interaction: discord.Integration):
     try:
         embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=0xCA93FF)
-        embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type '/' in the chat and see all the commands ChadCounting has to offer.", inline=False)
+        embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type `/` in the chat and see all the commands ChadCounting has to offer.", inline=False)
+        embed.add_field(name="Rules", value="In this counting game, users take turns counting with the next number. Double counting by the same user is not allowed. You can use the command `/setbanning` to see this server's configured rules for incorrect counts.", inline=False)
+        embed.add_field(name="Counting feedback", value="After a user counts, the bot will respond with emoji to indicate if the count was correct or not. If the bot is unavailable (e.g. due to maintenance) and doesn't respond, you can still continue counting as it will catch up on missed counts upon its return.", inline=False)
         embed.add_field(name="More information", value="For more information about this bot, go to [the GitHub page.](https://github.com/Gitfoe/ChadCounting)", inline=False)
-        embed.set_footer(text=f"ChadCounting by {await bot.fetch_user('134376288348667904')}")
+        embed.set_footer(text=f"ChadCounting version {bot_version}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception:
         await command_exception(interaction)
