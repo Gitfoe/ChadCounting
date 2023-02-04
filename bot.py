@@ -5,13 +5,15 @@ import re
 import math
 import json
 import copy
+import pytz
 import emoji
 import discord
 import traceback
 import statistics
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 from datetime import datetime
 from dotenv import load_dotenv
-import matplotlib.pyplot as plt
 from discord import app_commands
 from discord.ext import commands
 #endregion
@@ -28,7 +30,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-4-2023-no1"
+bot_version = "Feb-4-2023-no2"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -215,7 +217,7 @@ def write_guild_data(guild_data, backup=False):
     Optional backup parameter forces a backup filename format."""
     file = "guild_data.json"
     if backup:
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = format_current_datetime(datetime.now(), False, False)
         file = f"{file}.bak{timestamp}"
         try:
             with open(file, "r") as f:
@@ -331,24 +333,18 @@ def calculate_user_penalization(current_count, average_count, minimum_ban, maxim
     Users who are off very much from the actual count (and probably trolling) will get penalized harder."""
     # Convert string of message into integer, or the current_count if no numbers are found
     match = re.match(r'^\d+', message_count)
-    if match:
-        message_count_int = int(match.group())
-    else:
-        message_count_int = current_count
+    message_count_int = int(match.group()) if match else current_count
     # Math to calculate the ban time based on the average count and the current count
     difference_from_average = abs(current_count - average_count)
     difference_from_current = abs(current_count - message_count_int)
-    minutes_ban = math.pow(ban_range, difference_from_average)
-    # Return the ban time in minutes
+    try:
+        minutes_ban = min(maximum_ban, max(minimum_ban, math.pow(ban_range, difference_from_average)))
+    except Exception:
+        minutes_ban = maximum_ban
     if difference_from_current > 72 and current_count * 7 < message_count_int:
-        # Penalize hard if the entered count is more than 7x or 72 off from the actual count
-        return maximum_ban * troll_amplifier
-    elif minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
-        return minutes_ban
-    elif minutes_ban > minimum_ban:
-        return maximum_ban
+        return maximum_ban * troll_amplifier # Penalize hard if the entered count is more than 7x or 72 off from the actual count
     else:
-        return 0
+        return minutes_ban
 
 def ban_user(user_id, guild_id, ban_time):
     """Bans a user in a certain guild for a certain amount of time."""
@@ -438,6 +434,17 @@ def extract_discord_emojis(text):
     emoji_list.sort(key=lambda x: x[1])
     # Return just the emojis
     return [emoji[0] for emoji in emoji_list]
+
+def format_current_datetime(date_time, timezone, spaces):
+    """Formats a datetime to a readable string and returns it."""
+    if not timezone and not spaces:
+        return date_time.now().strftime("%Y%m%d-%H%M%S")
+    elif timezone and spaces:
+        return date_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+    elif timezone and not spaces:
+        return date_time.strftime("%Y%m%d-%H%M%S-%Z")
+    else:
+        return ""
 
 async def handle_reaction_setting(interaction, reactions):
     """Handles the reaction setting and sends the response. Part of /setreactions command."""
@@ -546,8 +553,8 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                 else:
                     guild_data[guild_id]["s_maximum_ban"] = maximum_ban
             if ban_range != None:
-                if ban_range < 1.05:
-                    full_text = f"The banning range/width should be more than 1.05. You entered {ban_range}.{changes_string}"
+                if ban_range <= 1.001:
+                    full_text = f"The banning range/width should be at least 1.001. You entered {ban_range}.{changes_string}"
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
                 else:
@@ -678,21 +685,26 @@ async def banrate(interaction: discord.Integration):
     try:
         if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
+        # Define variables
         guild_id = interaction.guild.id
-        banning = guild_data[guild_id]["s_banning"]
-        first_message = (
-            "Banning is currently enabled, beware! Here's the current banrate, you chad."
-            if banning
-            else "Banning is currently disabled, however, if it were enabled, here's the banrate."
-        )
-        counts = []
-        ban_times = []
         current_count = 0 # Start at calculating the count from 0
         average_count = calculate_average_count_of_guild(guild_id)
         minimum_ban = guild_data[guild_id]["s_minimum_ban"]
         maximum_ban = guild_data[guild_id]["s_maximum_ban"]
         ban_range = guild_data[guild_id]["s_ban_range"]
         troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
+        banning = guild_data[guild_id]["s_banning"]
+        # Define text for message
+        full_text = (
+            "Banning is currently enabled, beware! Here's the current banrate, you chad. "
+            if banning
+            else "Banning is currently disabled, however, if it were enabled, here's the banrate. "
+        )
+        full_text += f"If you get banned at any later count than on the far right of the graph, you will get banned for {minutes_to_fancy_string(maximum_ban)}. "
+        full_text += "Use the command `/setbanning` to see the currently configured banning settings."
+        # Calculate banning levels
+        counts = []
+        ban_times = []
         current_level = maximum_ban / 2 # Arbritrary level to simulate a do/while loop
         while current_count <= average_count or current_level >= minimum_ban and current_level < maximum_ban:
             current_level = calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier)
@@ -701,24 +713,30 @@ async def banrate(interaction: discord.Integration):
             current_count += 1
         # Generate plot of ban times
         fig, ax = plt.subplots(facecolor="#353840")
-        ax.plot(counts, ban_times, linewidth=1.5, color='#FFFFFF')
+        ax.plot(counts, ban_times, linewidth=1.5, color="#FFFFFF")
         ax.set_facecolor("#353840")
-        ax.set_xlabel("Count", fontsize=12, color='#FFFFFF')
-        ax.set_ylabel("Bantime (minutes)", fontsize=12, color='#FFFFFF')
-        ax.set_title(f"Banrate of {interaction.guild.name}", fontsize=14, color='#FFFFFF')
-        ax.grid(color='#FFFFFF', alpha=0.5)
-        ax.spines['bottom'].set_color('#FFFFFF')
-        ax.spines['left'].set_color('#FFFFFF')
-        ax.spines['right'].set_color('#FFFFFF')
-        ax.spines['top'].set_color('#FFFFFF')
-        ax.tick_params(axis='x', colors='#FFFFFF')
-        ax.tick_params(axis='y', colors='#FFFFFF')
+        ax.set_xlabel("Count", fontsize=12, color="#FFFFFF")
+        ax.set_ylabel("Bantime (minutes)", fontsize=12, color="#FFFFFF")
+        ax.set_title(f"ChadCounting banrate of {interaction.guild.name}", fontsize=14, color="#FFFFFF")
+        ax.grid(color="#FFFFFF", alpha=0.5)
+        ax.spines["bottom"].set_color("#FFFFFF")
+        ax.spines["left"].set_color("#FFFFFF")
+        ax.spines["right"].set_color("#FFFFFF")
+        ax.spines["top"].set_color("#FFFFFF")
+        ax.tick_params(axis="both", colors="#FFFFFF", labelsize="10")
+        img = mpimg.imread("logo_chadcounting.png")
+        img_ax = fig.add_axes([0, 0, 0.12, 0.12])
+        img_ax.imshow(img)
+        img_ax.axis("off")
+        utc = pytz.UTC
+        timestamp = format_current_datetime(datetime.now(utc), True, True)
+        fig.text(0.98, 0.98, timestamp, ha="right", va="top", color="#FFFFFF", alpha=0.5, fontsize=8, transform=fig.transFigure)
         # Generate image from plot and send to user
         img = io.BytesIO()
         plt.savefig(img, format="png")
         img.seek(0)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        await interaction.response.send_message(first_message, file=discord.File(img, f"banrate-{timestamp}.png"))
+        timestamp = format_current_datetime(datetime.now(utc), True, False)
+        await interaction.response.send_message(full_text, file=discord.File(img, f"ChadCounting-banrate-{guild_id}-{timestamp}.png"))
     except Exception:
         await command_exception(interaction)
 

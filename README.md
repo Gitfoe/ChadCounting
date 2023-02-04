@@ -35,12 +35,13 @@ The following commands could be used:
 
 ## Technical information
 ### Dependencies
-To run the Python program, the following dependencies need to be installed via `pip`:
+To run the Python program, the following dependencies need to be installed via `pip3`:
 ```
-pip install -U discord.py (confirmed with version 2.1.0)
-pip install -U python-dotenv (confirmed with version 0.21.1)
-pip install -U emoji (confirmed with version 2.2.0)
-pip install -U matplotlib (confirmed with version 3.6.3)
+pip3 install -U discord.py (confirmed with version 2.1.0)
+pip3 install -U python-dotenv (confirmed with version 0.21.1)
+pip3 install -U emoji (confirmed with version 2.2.0)
+pip3 install -U matplotlib (confirmed with version 3.6.3)
+pip3 install -U pytz (confirmed with version 2022.7.1)
 ```
 ### Discord Developer Portal bot settings
 When creating your own fork of ChadCounting, ensure your bot has the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. The scope should be `bot`.
