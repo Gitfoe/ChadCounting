@@ -16,6 +16,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View
 #endregion
 
 #region Initialisation
@@ -30,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-4-2023-no3"
+bot_version = "Feb-4-2023-no4"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -446,7 +447,7 @@ def format_current_datetime(date_time, timezone, spaces):
     else:
         return ""
 
-def adjust_font_size(title, max_font_size=14):
+def adjust_font_size(title, max_font_size):
     """Adjusts a font size to be smaller on longer texts."""
     font_size = max_font_size
     title_width = len(title)
@@ -468,10 +469,45 @@ async def handle_reaction_setting(interaction, reactions):
         configure = True
         return converted_string
 
-async def command_exception(interaction):
-    """Sends the traceback of a command exception to the user."""
-    error = traceback.format_exc()
-    await interaction.response.send_message(f"An error occured executing the command. Please send this to a developer of ChadCounting:\n```{error}```", ephemeral=True)
+async def command_exception(interaction, exception):
+    """Sends the traceback of a command exception to the user. Traceback if it fits as a Discord message, exception if not."""
+    error = f"An error occured executing the command. Please send this to a developer of ChadCounting:\n```"
+    trace = f"{traceback.format_exc()}```"
+    if len(error) + len(trace) > 2000:
+        error += f"{exception}```"
+    elif len(error) + len(exception) <= 2000:
+        error += trace
+    else:
+        error += "No exception data. The exception was too large to fit in a Discord message.```"
+    await interaction.response.send_message(error, ephemeral=True)
+#endregion
+
+#region View subclasses
+class ViewYesNoButtons(View):
+    """Makes a view with a yes and a no button. Resets the view after the button has been pressed."""
+    def __init__(self, interaction):
+        super().__init__(timeout=5)
+        self.interaction = interaction
+        self.button_answer = None # If the user clicked on yes (True) or no (False)
+        self.followup_message = None # In case the message that has to be edited is a followup message
+    async def clear_view_of_interaction(self):
+        if self.followup_message != None:
+            await self.interaction.followup.edit_message(self.followup_message.id, view=None)
+        else:
+            await self.interaction.edit_original_response(view=None)
+    @discord.ui.button(label="Yes", style=discord.ButtonStyle.green, emoji="🙂")
+    async def yes_button_callback(self, button, interaction):
+        self.button_answer = True
+        await self.clear_view_of_interaction()
+        self.stop()
+    @discord.ui.button(label="No", style=discord.ButtonStyle.red, emoji="💀")
+    async def no_button_callback(self, button, interaction):
+        self.button_answer = False
+        await self.clear_view_of_interaction()
+        self.stop()
+    async def on_timeout(self):
+        await self.clear_view_of_interaction()
+        await self.interaction.followup.send("Timeout: you didn't give an answer. No changes were made.", ephemeral=True)
 #endregion
 
 #region Discord commands
@@ -485,8 +521,8 @@ async def currentcount(interaction: discord.Integration):
         embed.add_field(name="More information", value="For more information about this bot, go to [the GitHub page.](https://github.com/Gitfoe/ChadCounting)", inline=False)
         embed.set_footer(text=f"ChadCounting version {bot_version}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="setchannel", description="Admins only: sets the channel for ChadCounting to the current channel.")
 async def setchannel(interaction: discord.Integration):
@@ -503,8 +539,8 @@ async def setchannel(interaction: discord.Integration):
             await interaction.response.send_message(f"The channel for ChadCounting has been set to '{interaction.channel}'.", ephemeral=True)
         else:
             await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="setbanning", description="Admins only: configure the banning settings. No parameters gives current settings.")
 @app_commands.describe(banning = "Enable or disable banning altogether. Default: True",
@@ -559,6 +595,21 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                                 f"You tried to configure {s_minimum_ban} for the minimum duration and {maximum_ban} for the maximum duration.{changes_string}")
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
+                elif maximum_ban >= 1440:
+                    view = ViewYesNoButtons(interaction)
+                    full_text = ("You entered a maximum ban duration of 1440 minutes (1 day) or more. Are you sure you want to do this? " +
+                                 "It is not possible to unban users, so users will potentially be banned for a very long time.")
+                    await interaction.response.send_message(full_text, view=view, ephemeral=True)
+                    await view.wait()
+                    if view.button_answer == False:
+                        await interaction.followup.send("The new maximum ban duration has not been set. Please try again.", ephemeral=True)
+                        return
+                    elif view.button_answer == None: # Timeout, no button was pressed
+                        return
+                    else:
+                        configure = True
+                        guild_data[guild_id]["s_maximum_ban"] = maximum_ban
+                        write_guild_data(guild_data) # Write already because troll_amplifier can also be called later
                 else:
                     guild_data[guild_id]["s_maximum_ban"] = maximum_ban
             if ban_range != None:
@@ -569,7 +620,24 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                 else:
                     guild_data[guild_id]["s_ban_range"] = ban_range
             if troll_amplifier != None:
-                if troll_amplifier < 1 or troll_amplifier > 1337:
+                if troll_amplifier >= 10:
+                    view = ViewYesNoButtons(interaction)
+                    full_text = ("You entered a troll amplifier of 10x or more. Are you sure you want to do this? " +
+                                 "It is not possible to unban users, so users will potentially be banned for a very long time.")
+                    if interaction.response.is_done(): # Check if need to send followup because maximum_ban already sent message
+                        view.followup_message = await interaction.followup.send(full_text, view=view, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(full_text, view=view, ephemeral=True)
+                    await view.wait()
+                    if view.button_answer == False:
+                        await interaction.followup.send("The new troll amplifier has not been set. Please try again.", ephemeral=True)
+                        return
+                    elif view.button_answer == None: # Timeout, no button was pressed
+                        return
+                    else:
+                        configure = True # Somehow the code at the top doesn't 
+                        guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
+                elif troll_amplifier < 1 or troll_amplifier > 1337:
                     full_text = f"You must enter a troll amplifier between 1 and 1337. You entered {troll_amplifier}.{changes_string}"
                     await interaction.response.send_message(full_text, ephemeral=True)
                     return
@@ -592,12 +660,15 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
             if configure:
                 write_guild_data(guild_data)
                 full_text = f"{interaction.user.name} changed the banning settings to the following:\n{setting_string}"
-                await interaction.response.send_message(full_text)
+                if interaction.response.is_done(): # Check if last message needs to be a followup or normal response
+                    await interaction.followup.send(full_text)
+                else:
+                    await interaction.response.send_message(full_text)
             else:
                 full_text = f"Here you go, the current banning settings:\n{setting_string}"
                 await interaction.response.send_message(full_text, ephemeral=True)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="setreactions", description="Admins only: configure the correct/incorrect count reactions. No parameters gives current settings.")
 @app_commands.describe(correct_reactions = "One or more emoji the bot will react with when someome counted correctly. Default: 🙂",
@@ -638,8 +709,8 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
             else:
                 full_text = f"Here you go, the current reactions:\n{setting_string}"
                 await interaction.response.send_message(full_text, ephemeral=True)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="currentcount", description="Gives the current count in case you're unsure or want to double check.")
 async def currentcount(interaction: discord.Integration):
@@ -648,8 +719,8 @@ async def currentcount(interaction: discord.Integration):
             return
         current_count = guild_data[interaction.guild.id]["current_count"]
         await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="highscore", description="Gives the highest count that has been achieved in this Discord server.")
 async def highscore(interaction: discord.Integration):
@@ -686,8 +757,8 @@ async def highscore(interaction: discord.Integration):
                       2: "Well done.", 
                       3: "Excellent work, chads!"}.get(points, "")
         await interaction.response.send_message(full_text)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="banrate", description="Gives a list of the different ban levels showing the consequences of messing up the count.")
 async def banrate(interaction: discord.Integration):
@@ -727,7 +798,7 @@ async def banrate(interaction: discord.Integration):
         ax.set_xlabel("Count", fontsize=12, color="#FFFFFF")
         ax.set_ylabel("Bantime (minutes)", fontsize=12, color="#FFFFFF")
         title_text = f"ChadCounting banrate of {interaction.guild.name}"
-        ax.set_title(title_text, fontsize=adjust_font_size(title_text), color="#FFFFFF")
+        ax.set_title(title_text, fontsize=adjust_font_size(title_text, 14), color="#FFFFFF")
         ax.grid(color="#FFFFFF", alpha=0.5)
         ax.spines["bottom"].set_color("#FFFFFF")
         ax.spines["left"].set_color("#FFFFFF")
@@ -747,8 +818,8 @@ async def banrate(interaction: discord.Integration):
         img.seek(0)
         timestamp = format_current_datetime(datetime.now(utc), True, False)
         await interaction.response.send_message(full_text, file=discord.File(img, f"ChadCounting-banrate-{guild_id}-{timestamp}.png"))
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="userstats", description="Gives counting statistics of a user for this Discord server.")
 @app_commands.describe(user = "Optional: the user you want to check the stats of.")
@@ -798,8 +869,8 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
                      f"Active in Discord servers: {active_in_guilds}```" +
                      f"{chad_or_not}")
         await interaction.response.send_message(full_text)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 
 @bot.tree.command(name="serverstats", description="Gives counting statistics of this Discord server.")
 async def serverstats(interaction: discord.Integration):
@@ -818,8 +889,8 @@ async def serverstats(interaction: discord.Integration):
             total_counts = correct_counts + incorrect_counts
             full_text += f"> {i+1}. {user_id} - {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
         await interaction.response.send_message(full_text)
-    except Exception:
-        await command_exception(interaction)
+    except Exception as e:
+        await command_exception(interaction, e)
 #endregion
 
 bot.run(DEV_TOKEN)
