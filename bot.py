@@ -30,7 +30,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-4-2023-no2"
+bot_version = "Feb-4-2023-no3"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -446,6 +446,15 @@ def format_current_datetime(date_time, timezone, spaces):
     else:
         return ""
 
+def adjust_font_size(title, max_font_size=14):
+    """Adjusts a font size to be smaller on longer texts."""
+    font_size = max_font_size
+    title_width = len(title)
+    while title_width > 35 and font_size > 5:
+        font_size -= 1
+        title_width = len(title) * (font_size / max_font_size)
+    return font_size
+
 async def handle_reaction_setting(interaction, reactions):
     """Handles the reaction setting and sends the response. Part of /setreactions command."""
     changes_string = "\nNo changes were made to the reactions. Try again, chad."
@@ -717,7 +726,8 @@ async def banrate(interaction: discord.Integration):
         ax.set_facecolor("#353840")
         ax.set_xlabel("Count", fontsize=12, color="#FFFFFF")
         ax.set_ylabel("Bantime (minutes)", fontsize=12, color="#FFFFFF")
-        ax.set_title(f"ChadCounting banrate of {interaction.guild.name}", fontsize=14, color="#FFFFFF")
+        title_text = f"ChadCounting banrate of {interaction.guild.name}"
+        ax.set_title(title_text, fontsize=adjust_font_size(title_text), color="#FFFFFF")
         ax.grid(color="#FFFFFF", alpha=0.5)
         ax.spines["bottom"].set_color("#FFFFFF")
         ax.spines["left"].set_color("#FFFFFF")
