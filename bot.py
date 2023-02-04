@@ -1,5 +1,6 @@
 #region Python imports
 import os
+import io
 import re
 import math
 import json
@@ -10,6 +11,7 @@ import traceback
 import statistics
 from datetime import datetime
 from dotenv import load_dotenv
+import matplotlib.pyplot as plt
 from discord import app_commands
 from discord.ext import commands
 #endregion
@@ -26,7 +28,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-3-2023-no2"
+bot_version = "Feb-4-2023-no1"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -146,7 +148,9 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
             maximum_ban = guild_data[guild_id]["s_maximum_ban"]
             ban_range = guild_data[guild_id]["s_ban_range"]
             troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
-            current_user_minutes_ban = calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier, message_count)
+            current_user_minutes_ban = round(calculate_user_penalization(
+                current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier, message_count
+                ))
             if current_user_minutes_ban > 0:
                 ban_user(message.author.id, guild_id, current_user_minutes_ban)
                 current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
@@ -340,7 +344,7 @@ def calculate_user_penalization(current_count, average_count, minimum_ban, maxim
         # Penalize hard if the entered count is more than 7x or 72 off from the actual count
         return maximum_ban * troll_amplifier
     elif minutes_ban >= minimum_ban and minutes_ban <= maximum_ban:
-        return round(minutes_ban)
+        return minutes_ban
     elif minutes_ban > minimum_ban:
         return maximum_ban
     else:
@@ -674,17 +678,16 @@ async def banrate(interaction: discord.Integration):
     try:
         if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
-        global guild_data
         guild_id = interaction.guild.id
         banning = guild_data[guild_id]["s_banning"]
-        if banning:
-            first_message = "Banning is currently enabled, beware! Here's the current banrate, you chad:\n```"
-        else:
-            first_message = "Banning is currently disabled, however, if it were enabled, here's the banrate:\n```"
-        consecutive_message = "Here's the continuation of the previous ban rate levels:\n```"
-        ban_levels_list = [first_message]
+        first_message = (
+            "Banning is currently enabled, beware! Here's the current banrate, you chad."
+            if banning
+            else "Banning is currently disabled, however, if it were enabled, here's the banrate."
+        )
+        counts = []
+        ban_times = []
         current_count = 0 # Start at calculating the count from 0
-        message_index = 0 # Since there is a 2000 character message limit on Discord
         average_count = calculate_average_count_of_guild(guild_id)
         minimum_ban = guild_data[guild_id]["s_minimum_ban"]
         maximum_ban = guild_data[guild_id]["s_maximum_ban"]
@@ -693,20 +696,29 @@ async def banrate(interaction: discord.Integration):
         current_level = maximum_ban / 2 # Arbritrary level to simulate a do/while loop
         while current_count <= average_count or current_level >= minimum_ban and current_level < maximum_ban:
             current_level = calculate_user_penalization(current_count, average_count, minimum_ban, maximum_ban, ban_range, troll_amplifier)
-            current_level_fancy = minutes_to_fancy_string(current_level, True)
-            ban_level_string = f"Count {current_count}: {current_level_fancy} ban\n"
-            if not len(ban_levels_list[message_index]) + len(ban_level_string) + 3 <= 2000: # 3 for the ```code block
-                ban_levels_list[message_index] += "```" # End the level with a quote block
-                message_index += 1
-                ban_levels_list.append(consecutive_message)
-            ban_levels_list[message_index] += ban_level_string
+            counts.append(current_count)
+            ban_times.append(current_level)
             current_count += 1
-        ban_levels_list[message_index] += f"```Messing up at any later counts will result in a ban of {current_level_fancy}."
-        for index, level in enumerate(ban_levels_list):
-            if index == 0:
-                await interaction.response.send_message(level, ephemeral=True)
-            else:
-                await interaction.followup.send(level, ephemeral=True)
+        # Generate plot of ban times
+        fig, ax = plt.subplots(facecolor="#353840")
+        ax.plot(counts, ban_times, linewidth=1.5, color='#FFFFFF')
+        ax.set_facecolor("#353840")
+        ax.set_xlabel("Count", fontsize=12, color='#FFFFFF')
+        ax.set_ylabel("Bantime (minutes)", fontsize=12, color='#FFFFFF')
+        ax.set_title(f"Banrate of {interaction.guild.name}", fontsize=14, color='#FFFFFF')
+        ax.grid(color='#FFFFFF', alpha=0.5)
+        ax.spines['bottom'].set_color('#FFFFFF')
+        ax.spines['left'].set_color('#FFFFFF')
+        ax.spines['right'].set_color('#FFFFFF')
+        ax.spines['top'].set_color('#FFFFFF')
+        ax.tick_params(axis='x', colors='#FFFFFF')
+        ax.tick_params(axis='y', colors='#FFFFFF')
+        # Generate image from plot and send to user
+        img = io.BytesIO()
+        plt.savefig(img, format="png")
+        img.seek(0)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        await interaction.response.send_message(first_message, file=discord.File(img, f"banrate-{timestamp}.png"))
     except Exception:
         await command_exception(interaction)
 
