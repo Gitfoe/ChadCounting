@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-4-2023-no4"
+bot_version = "Feb-4-2023-no5"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -563,7 +563,7 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
             guild_id = interaction.guild.id
             changes_string = "\nNo changes were made to the banning settings. Try again, chad."
             # Check if any of the parameters have been entered
-            configure = all(v is not None for v in (banning, minimum_ban, maximum_ban, ban_range, troll_amplifier, pass_doublecount))
+            configure = any([banning, minimum_ban, maximum_ban, ban_range, troll_amplifier, pass_doublecount])
             if configure and not interaction.user.guild_permissions.administrator:
                 await interaction.response.send_message("Sorry, you don't have the rights to change the banning settings.", ephemeral=True)
                 return
@@ -607,7 +607,6 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     elif view.button_answer == None: # Timeout, no button was pressed
                         return
                     else:
-                        configure = True
                         guild_data[guild_id]["s_maximum_ban"] = maximum_ban
                         write_guild_data(guild_data) # Write already because troll_amplifier can also be called later
                 else:
@@ -635,7 +634,6 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
                     elif view.button_answer == None: # Timeout, no button was pressed
                         return
                     else:
-                        configure = True # Somehow the code at the top doesn't 
                         guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
                 elif troll_amplifier < 1 or troll_amplifier > 1337:
                     full_text = f"You must enter a troll amplifier between 1 and 1337. You entered {troll_amplifier}.{changes_string}"
