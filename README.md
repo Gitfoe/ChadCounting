@@ -52,7 +52,7 @@ In the 'Initialisation' section of the bot.py file, the dev_mode can be enabled 
 [Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=67648&scope=bot)
 
 ### Updating the database
-After changing values in the database, the current guilds need to be updated to corrospond to the new database values. Ensure to enable `update_guild_data` in the 'Initialisation' region of the bot.py file. The script will automatically create a backup of guild_data before updating. After updating and seeing `ChadCounting is ready` in the terminal, you can dissable updating again.
+After changing values in the database, the current guilds need to be updated to corrospond to the new database values. Ensure to enable `update_guild_data` in the 'Initialisation' region of the bot.py file. The script will automatically create a backup of guild_data before updating. After updating and seeing `ChadCounting is ready` in the terminal, you can disable updating again.
 
 ### Environment tables
 For added security and to comply by Discord's ToS, create a .env file in the root directory of the ChadCounting bot folder (where bot.py is located). This file serves as the designated location to securely store bot tokens. To add your Discord bot tokens, follow the example below:
@@ -61,3 +61,6 @@ For added security and to comply by Discord's ToS, create a .env file in the roo
 DISCORD_TOKEN=your_discord_bot_token
 DEV_TOKEN=your_discord_dev_bot_token
 ```
+
+### Pre-release versioning
+To properly manage versioning, it is recommended to update the `bot_version` variable in the `Initialization` section of the `bot.py` file every time a functional version is committed to the `dev` branch. This version will be displayed in the output of the `/help` command. The naming convention follows the pattern: `MMM-DD-YYYY-noX`, where X is a sequential number starting from 1 for each new day. Example: `Feb-27-2023-no2`.

@@ -31,7 +31,8 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-4-2023-no5"
+bot_version = "Feb-6-2023-no1"
+chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -392,30 +393,35 @@ def calculate_average_count_of_guild(guild_id):
         return 0
 
 async def check_correct_channel(interaction):
-    """Checks if the command has been executed in the correct channel. Returns False if not."""
+    """Checks if the command has been executed in the correct channel. Sends a response and returns False if not."""
     global guild_data
     counting_channel = guild_data[interaction.guild.id]["counting_channel"]
+    embed = discord.Embed(title="Incorrect channel", color=chadcounting_color)
+    channel_error = f"You can only execute ChadCounting commands in the counting channel, "
     if interaction.channel.id != counting_channel:
-        channel_error = f"You can only execute ChadCounting commands in the counting channel, "
         channel = interaction.guild.get_channel(counting_channel)
         if channel is not None:
-            channel_error += f"which is '{channel.name}'."
+            channel_error += f"which is '{channel.name}' Use `/help` for more information."
         else:
             channel_error += "however, it doesn't exist anymore. Contact your server admin if you believe this is an error."
-        await interaction.response.send_message(channel_error, ephemeral=True)
+        embed.add_field(name="", value=channel_error)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
     elif counting_channel == None:
-        channel_error = (f"You can only execute ChadCounting commands in the counting channel, however, it has not been set yet. " +
-                         f"If you are an admin of this server, use the command /setchannel in the channel you want to count in.")
-        await interaction.response.send_message(channel_error, ephemeral=True)
+        channel_error = (f"however, it has not been set yet. " +
+                         f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
+        embed.add_field(name="", value=channel_error)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
     else:
         return True
 
 async def check_bot_ready(interaction):
     """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
+    embed = discord.Embed(title="ChadCounting is preparing for takeoff", color=chadcounting_color)
     if not is_ready:
-        await interaction.response.send_message(f"ChadCounting is still starting up, please try again in a couple seconds!", ephemeral=True)
+        embed.add_field(name="", value=f"ChadCounting is still starting up, please try again in a couple of seconds!")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return is_ready
     else:
         return is_ready
@@ -456,14 +462,15 @@ def adjust_font_size(title, max_font_size):
         title_width = len(title) * (font_size / max_font_size)
     return font_size
 
-async def handle_reaction_setting(interaction, reactions):
+async def handle_reaction_setting(interaction, reactions, embed):
     """Handles the reaction setting and sends the response. Part of /setreactions command."""
     changes_string = "\nNo changes were made to the reactions. Try again, chad."
     converted_string = extract_discord_emojis(reactions)
     converted_string_len = len(converted_string)
     if converted_string_len < 1 or converted_string_len > 10:
-        full_text = f"Please enter no less than 1 and no more than 10 emoji. You entered {converted_string_len} emoji.{changes_string}"
-        await interaction.response.send_message(full_text, ephemeral=True)
+        full_text = f"Please enter no less than 1 and no more than 10 emoji for one reaction. You entered {converted_string_len} emoji.{changes_string}"
+        embed.add_field(name="", value=full_text)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return None
     else:
         configure = True
@@ -474,22 +481,25 @@ async def command_exception(interaction, exception):
     error = f"An error occured executing the command. Please send this to a developer of ChadCounting:\n```"
     trace = f"{traceback.format_exc()}```"
     if len(error) + len(trace) > 2000:
-        error += f"{exception}```"
-    elif len(error) + len(exception) <= 2000:
-        error += trace
+        error += f"{trace}```"
+    elif len(error) + len(str(exception)) <= 2000:
+        error += f"{str(exception)}```"
     else:
         error += "No exception data. The exception was too large to fit in a Discord message.```"
-    await interaction.response.send_message(error, ephemeral=True)
+    embed = discord.Embed(title="Error", color=chadcounting_color)
+    embed.add_field(name="", value=error)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 #endregion
 
 #region View subclasses
 class ViewYesNoButtons(View):
     """Makes a view with a yes and a no button. Resets the view after the button has been pressed."""
     def __init__(self, interaction):
-        super().__init__(timeout=5)
+        super().__init__()
         self.interaction = interaction
         self.button_answer = None # If the user clicked on yes (True) or no (False)
         self.followup_message = None # In case the message that has to be edited is a followup message
+        self.title = ""
     async def clear_view_of_interaction(self):
         if self.followup_message != None:
             await self.interaction.followup.edit_message(self.followup_message.id, view=None)
@@ -507,14 +517,16 @@ class ViewYesNoButtons(View):
         self.stop()
     async def on_timeout(self):
         await self.clear_view_of_interaction()
-        await self.interaction.followup.send("Timeout: you didn't give an answer. No changes were made.", ephemeral=True)
+        embed = discord.Embed(title=self.title, color=chadcounting_color)
+        embed.add_field(name="", value="Timeout: you didn't give an answer. No changes were made.")
+        await self.interaction.followup.send(embed=embed, ephemeral=True)
 #endregion
 
 #region Discord commands
 @bot.tree.command(name="help", description="Gives information about ChadCounting.")
 async def currentcount(interaction: discord.Integration):
     try:
-        embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=0xCA93FF)
+        embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=chadcounting_color)
         embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type `/` in the chat and see all the commands ChadCounting has to offer.", inline=False)
         embed.add_field(name="Rules", value="In this counting game, users take turns counting with the next number. Double counting by the same user is not allowed. You can use the command `/setbanning` to see this server's configured rules for incorrect counts.", inline=False)
         embed.add_field(name="Counting feedback", value="After a user counts, the bot will respond with emoji to indicate if the count was correct or not. If the bot is unavailable (e.g. due to maintenance) and doesn't respond, you can still continue counting as it will catch up on missed counts upon its return. If you're unsure of the current recorded count, use the command `/currentcount` to check.", inline=False)
@@ -536,9 +548,13 @@ async def setchannel(interaction: discord.Integration):
             if guild_data[guild_id]["previous_message"] == None: # Set last message to now if no message has ever been recorded
                 guild_data[guild_id]["previous_message"] = datetime.now()
             write_guild_data(guild_data)
-            await interaction.response.send_message(f"The channel for ChadCounting has been set to '{interaction.channel}'.", ephemeral=True)
+            embed = discord.Embed(title="ChadCounting channel set", color=chadcounting_color)
+            embed.add_field(name="", value=f"The counting channel is now **'{interaction.channel}'**.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
-            await interaction.response.send_message("Sorry, you don't have the rights to change the channel for counting.", ephemeral=True)
+            embed = discord.Embed(title="ChadCounting channel not set", color=chadcounting_color)
+            embed.add_field(name="", value="Sorry, you don't have the rights to change the channel for counting.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -558,113 +574,133 @@ async def setbanning(interaction: discord.Integration, banning: bool=None,
     try:
         if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
-        else:
-            global guild_data
-            guild_id = interaction.guild.id
-            changes_string = "\nNo changes were made to the banning settings. Try again, chad."
-            # Check if any of the parameters have been entered
-            configure = any([banning, minimum_ban, maximum_ban, ban_range, troll_amplifier, pass_doublecount])
-            if configure and not interaction.user.guild_permissions.administrator:
-                await interaction.response.send_message("Sorry, you don't have the rights to change the banning settings.", ephemeral=True)
-                return
-            if banning != None:
-                guild_data[guild_id]["s_banning"] = banning
-            if minimum_ban != None:
-                if maximum_ban != None:
-                    s_maximum_ban = maximum_ban
-                else:
-                    s_maximum_ban = guild_data[guild_id]["s_maximum_ban"]
-                if minimum_ban < 0:
-                    full_text = f"You can't set the minimum ban minutes lower than 0.{changes_string}"
-                    await interaction.response.send_message(full_text, ephemeral=True)
-                    return
-                elif minimum_ban > s_maximum_ban:
-                    full_text = ("You can't set the minimum ban duration higher than the maximum ban duration.\n" +
-                                f"You tried to configure {minimum_ban} for the minimum duration and {s_maximum_ban} for the maximum duration.{changes_string}")
-                    await interaction.response.send_message(full_text, ephemeral=True)
-                    return
-                else:
-                    guild_data[guild_id]["s_minimum_ban"] = minimum_ban
+        global guild_data
+        guild_id = interaction.guild.id
+        embed = discord.Embed(title="Banning settings", color=chadcounting_color)
+        changes_string = "\nNo changes were made to the banning settings. Try again, chad."
+        # Check if any of the parameters have been entered
+        configure = any([banning, minimum_ban, maximum_ban, ban_range, troll_amplifier, pass_doublecount])
+        if configure and not interaction.user.guild_permissions.administrator:
+            embed.add_field(name="", value="Sorry, you don't have the rights to change the banning settings.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        if banning != None:
+            guild_data[guild_id]["s_banning"] = banning
+        if minimum_ban != None:
             if maximum_ban != None:
-                if minimum_ban != None:
-                    s_minimum_ban = minimum_ban
-                else:
-                    s_minimum_ban = s_maximum_ban = guild_data[guild_id]["s_minimum_ban"]
-                if maximum_ban < s_minimum_ban:
-                    full_text = ("You can't set the maximum ban duration lower than the minimum ban duration.\n" +
-                                f"You tried to configure {s_minimum_ban} for the minimum duration and {maximum_ban} for the maximum duration.{changes_string}")
-                    await interaction.response.send_message(full_text, ephemeral=True)
+                s_maximum_ban = maximum_ban
+            else:
+                s_maximum_ban = guild_data[guild_id]["s_maximum_ban"]
+            if minimum_ban < 0:
+                full_text = f"You can't set the minimum ban minutes lower than 0.{changes_string}"
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            elif minimum_ban > s_maximum_ban:
+                full_text = ("You can't set the minimum ban duration higher than the maximum ban duration.\n" +
+                            f"You tried to configure {minimum_ban} for the minimum duration and {s_maximum_ban} for the maximum duration.{changes_string}")
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            else:
+                guild_data[guild_id]["s_minimum_ban"] = minimum_ban
+        if maximum_ban != None:
+            if minimum_ban != None:
+                s_minimum_ban = minimum_ban
+            else:
+                s_minimum_ban = s_maximum_ban = guild_data[guild_id]["s_minimum_ban"]
+            if maximum_ban < s_minimum_ban:
+                full_text = ("You can't set the maximum ban duration lower than the minimum ban duration.\n" +
+                            f"You tried to configure {s_minimum_ban} for the minimum duration and {maximum_ban} for the maximum duration.{changes_string}")
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            elif maximum_ban >= 1440:
+                view = ViewYesNoButtons(interaction)
+                view.title = embed.title
+                full_text = ("You entered a maximum ban duration of 1440 minutes (1 day) or more. Are you sure you want to do this? " +
+                             "It is not possible to unban users, so users will potentially be banned for a very long time.")
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                await view.wait()
+                if view.button_answer == False:
+                    full_text = "The new maximum ban duration has not been set. Please try again."
+                    embed.clear_fields()
+                    embed.add_field(name="", value=full_text)
+                    await interaction.followup.send(embed=embed, ephemeral=True)
                     return
-                elif maximum_ban >= 1440:
-                    view = ViewYesNoButtons(interaction)
-                    full_text = ("You entered a maximum ban duration of 1440 minutes (1 day) or more. Are you sure you want to do this? " +
-                                 "It is not possible to unban users, so users will potentially be banned for a very long time.")
-                    await interaction.response.send_message(full_text, view=view, ephemeral=True)
-                    await view.wait()
-                    if view.button_answer == False:
-                        await interaction.followup.send("The new maximum ban duration has not been set. Please try again.", ephemeral=True)
-                        return
-                    elif view.button_answer == None: # Timeout, no button was pressed
-                        return
-                    else:
-                        guild_data[guild_id]["s_maximum_ban"] = maximum_ban
-                        write_guild_data(guild_data) # Write already because troll_amplifier can also be called later
+                elif view.button_answer == None: # Timeout, no button was pressed
+                    return
                 else:
                     guild_data[guild_id]["s_maximum_ban"] = maximum_ban
-            if ban_range != None:
-                if ban_range <= 1.001:
-                    full_text = f"The banning range/width should be at least 1.001. You entered {ban_range}.{changes_string}"
-                    await interaction.response.send_message(full_text, ephemeral=True)
-                    return
+                    write_guild_data(guild_data) # Write already because troll_amplifier can also be called later
+            else:
+                guild_data[guild_id]["s_maximum_ban"] = maximum_ban
+        if ban_range != None:
+            if ban_range < 1.001:
+                full_text = f"The banning range/width should be at least 1.001. You entered {ban_range}.{changes_string}"
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+            else:
+                guild_data[guild_id]["s_ban_range"] = ban_range
+        if troll_amplifier != None:
+            if troll_amplifier >= 10:
+                view = ViewYesNoButtons(interaction)
+                view.title = embed.title
+                full_text = ("You entered a troll amplifier of 10x or more. Are you sure you want to do this? " +
+                             "It is not possible to unban users, so users will potentially be banned for a very long time.")
+                embed.clear_fields()
+                embed.add_field(name="", value=full_text)
+                if interaction.response.is_done(): # Check if need to send followup because maximum_ban already sent message
+                    view.followup_message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
                 else:
-                    guild_data[guild_id]["s_ban_range"] = ban_range
-            if troll_amplifier != None:
-                if troll_amplifier >= 10:
-                    view = ViewYesNoButtons(interaction)
-                    full_text = ("You entered a troll amplifier of 10x or more. Are you sure you want to do this? " +
-                                 "It is not possible to unban users, so users will potentially be banned for a very long time.")
-                    if interaction.response.is_done(): # Check if need to send followup because maximum_ban already sent message
-                        view.followup_message = await interaction.followup.send(full_text, view=view, ephemeral=True)
-                    else:
-                        await interaction.response.send_message(full_text, view=view, ephemeral=True)
-                    await view.wait()
-                    if view.button_answer == False:
-                        await interaction.followup.send("The new troll amplifier has not been set. Please try again.", ephemeral=True)
-                        return
-                    elif view.button_answer == None: # Timeout, no button was pressed
-                        return
-                    else:
-                        guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
-                elif troll_amplifier < 1 or troll_amplifier > 1337:
-                    full_text = f"You must enter a troll amplifier between 1 and 1337. You entered {troll_amplifier}.{changes_string}"
-                    await interaction.response.send_message(full_text, ephemeral=True)
+                    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                await view.wait()
+                if view.button_answer == False:
+                    full_text = "The new troll amplifier has not been set. Please try again."
+                    embed.clear_fields()
+                    embed.add_field(name="", value=full_text)
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                elif view.button_answer == None: # Timeout, no button was pressed
                     return
                 else:
                     guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
-            if pass_doublecount != None:
-                guild_data[guild_id]["s_pass_doublecount"] = pass_doublecount
-            s_banning = guild_data[guild_id]["s_banning"]
-            s_minimum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_minimum_ban"])
-            s_maximum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_maximum_ban"])
-            s_ban_range = guild_data[guild_id]["s_ban_range"]
-            s_troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
-            s_pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
-            setting_string = (f"> Banning enabled: {s_banning}\n" +
-                              f"> Minimum ban duration: {s_minimum_ban}\n" +
-                              f"> Maximum ban duration: {s_maximum_ban}\n" +
-                              f"> Ban range/width: exponent of {s_ban_range} squared\n" +
-                              f"> Troll amplifier: {s_troll_amplifier}x\n" +
-                              f"> Ignoring of double counts: {s_pass_doublecount}")
-            if configure:
-                write_guild_data(guild_data)
-                full_text = f"{interaction.user.name} changed the banning settings to the following:\n{setting_string}"
-                if interaction.response.is_done(): # Check if last message needs to be a followup or normal response
-                    await interaction.followup.send(full_text)
-                else:
-                    await interaction.response.send_message(full_text)
+            elif troll_amplifier < 1 or troll_amplifier > 1337:
+                full_text = f"You must enter a troll amplifier between 1 and 1337. You entered {troll_amplifier}.{changes_string}"
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
             else:
-                full_text = f"Here you go, the current banning settings:\n{setting_string}"
-                await interaction.response.send_message(full_text, ephemeral=True)
+                guild_data[guild_id]["s_troll_amplifier"] = troll_amplifier
+        if pass_doublecount != None:
+            guild_data[guild_id]["s_pass_doublecount"] = pass_doublecount
+        # Import settings and format text
+        s_banning = guild_data[guild_id]["s_banning"]
+        s_minimum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_minimum_ban"])
+        s_maximum_ban = minutes_to_fancy_string(guild_data[guild_id]["s_maximum_ban"])
+        s_ban_range = guild_data[guild_id]["s_ban_range"]
+        s_troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
+        s_pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
+        setting_string = (f"**Banning enabled:** {s_banning}\n" +
+                          f"**Minimum ban duration:** {s_minimum_ban}\n" +
+                          f"**Maximum ban duration:** {s_maximum_ban}\n" +
+                          f"**Ban range/width:** exponent of {s_ban_range} squared\n" +
+                          f"**Troll amplifier:** {s_troll_amplifier}x\n" +
+                          f"**Ignoring of double counts:** {s_pass_doublecount}")
+        if configure:
+            write_guild_data(guild_data)
+            embed = discord.Embed(title=f"{interaction.user.name} changed the banning settings to the following", color=chadcounting_color)
+            embed.add_field(name="", value=setting_string)
+            if interaction.response.is_done(): # Check if last message needs to be a followup or normal response
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.response.send_message(embed=embed)
+        else:
+            embed = discord.Embed(title="Here you go, the current banning settings", color=chadcounting_color)
+            embed.add_field(name="", value=setting_string)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -679,34 +715,39 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
         else:
             global guild_data
             guild_id = interaction.guild.id
+            embed = discord.Embed(title="Reaction settings", color=chadcounting_color)
             # Check if any of the parameters have been entered
             configure = all(v is not None for v in (correct_reactions, incorrect_reactions))
             if configure and not interaction.user.guild_permissions.administrator:
-                await interaction.response.send_message("Sorry, you don't have the rights to change the bot's reactions.", ephemeral=True)
+                full_text = "Sorry, you don't have the rights to change the bot's reactions."
+                embed.add_field(name="", value=full_text)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 return
             if correct_reactions != None:
-                response = await handle_reaction_setting(interaction, correct_reactions)
+                response = await handle_reaction_setting(interaction, correct_reactions, embed)
                 if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_correct_reaction"] = response
                 configure = True
             if incorrect_reactions != None:
-                response = await handle_reaction_setting(interaction, incorrect_reactions)
+                response = await handle_reaction_setting(interaction, incorrect_reactions, embed)
                 if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_incorrect_reaction"] = response
                 configure = True
             s_correct_reactions = guild_data[guild_id]["s_correct_reaction"]
             s_incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
-            setting_string = (f"> Correct count reaction(s): {''.join(str(i) for i in s_correct_reactions)}\n" +
-                              f"> Incorrect count reaction(s): {''.join(str(i) for i in s_incorrect_reactions)}\n")
+            setting_string = (f"**Correct count reaction(s):** {''.join(str(i) for i in s_correct_reactions)}\n" +
+                              f"**Incorrect count reaction(s):** {''.join(str(i) for i in s_incorrect_reactions)}\n")
             if configure:
                 write_guild_data(guild_data)
-                full_text = f"{interaction.user.name} changed ChadCounting's reactions to the following:\n{setting_string}"
-                await interaction.response.send_message(full_text)
+                embed = discord.Embed(title=f"{interaction.user.name} changed ChadCounting's reactions to the following", color=chadcounting_color)
+                embed.add_field(name="", value=setting_string)
+                await interaction.response.send_message(embed=embed)
             else:
-                full_text = f"Here you go, the current reactions:\n{setting_string}"
-                await interaction.response.send_message(full_text, ephemeral=True)
+                embed = discord.Embed(title="Here you go, the current reactions", color=chadcounting_color)
+                embed.add_field(name="", value=setting_string)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -716,7 +757,9 @@ async def currentcount(interaction: discord.Integration):
         if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
             return
         current_count = guild_data[interaction.guild.id]["current_count"]
-        await interaction.response.send_message(f"The current count is {current_count}. So what should the next number be? That's up to you, chad.")
+        embed = discord.Embed(title="Current count", color=chadcounting_color)
+        embed.add_field(name="", value=f"The current count is {current_count}. So what should the next number be? That's up to you chads.")
+        await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -754,7 +797,9 @@ async def highscore(interaction: discord.Integration):
                       1: "Decent work.", 
                       2: "Well done.", 
                       3: "Excellent work, chads!"}.get(points, "")
-        await interaction.response.send_message(full_text)
+        embed = discord.Embed(title="Counting high score", color=chadcounting_color)
+        embed.add_field(name="", value=full_text)
+        await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -815,7 +860,13 @@ async def banrate(interaction: discord.Integration):
         plt.savefig(img, format="png")
         img.seek(0)
         timestamp = format_current_datetime(datetime.now(utc), True, False)
-        await interaction.response.send_message(full_text, file=discord.File(img, f"ChadCounting-banrate-{guild_id}-{timestamp}.png"))
+        # Send embed with image in it
+        filename = f"ChadCounting-banrate-{guild_id}-{timestamp}.png"
+        file = discord.File(img, filename)
+        embed = discord.Embed(title="Banning rate", color=chadcounting_color)
+        embed.add_field(name="", value=full_text)
+        embed.set_image(url=f"attachment://{filename}")
+        await interaction.response.send_message(file=file, embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -827,14 +878,21 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
             return
         global guild_data
         guild_id = interaction.guild.id
-        if user == None:
+        if user == None: # No user entered, so check the caller
             user_id = interaction.user.id
             username = interaction.user.name
+            username_mention = interaction.user.mention
         else:
             user_id = user.id
-            username = user.name   
+            username = user.name
+            username_mention = user.mention
         # Define statistics
-        if user_id in guild_data[guild_id]["users"]:
+        if user_id not in guild_data[guild_id]["users"]:
+            full_text = f"I can't give you the stats of {username_mention}, because they haven't participated in ChadCounting yet. Shame."
+            embed = discord.Embed(title="User statistics", color=chadcounting_color)
+            embed.add_field(name="", value=full_text)
+            await interaction.response.send_message(embed=embed)
+        else:
             correct_counts = guild_data[guild_id]["users"][user_id]["correct_counts"]
             incorrect_counts = guild_data[guild_id]["users"][user_id]["incorrect_counts"]
             total_counts = correct_counts + incorrect_counts
@@ -845,10 +903,10 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
                               90: "Not bad, not good.",
                               80: "Nearing beta performance. Do better.",
                               70: "Definitely not chad performance."}
-                chad_or_not = "Full beta performance. Become chad." # Default value if lower than lowest threshold
+                chad_level = "Full beta performance. Become chad." # Default value if lower than lowest threshold
                 for threshold, message in thresholds.items():
                     if percent_correct >= threshold:
-                        chad_or_not = message
+                        chad_level = message
                         break
             else:
                 percent_correct = "N/A"
@@ -856,17 +914,16 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
             for values in guild_data.values():
                 if user_id in values["users"]:
                     active_in_guilds += 1
-        else:
-            await interaction.response.send_message(f"{username} has not participated in ChadCounting yet. Shame.")
-        # End of defining statistics
-        full_text = (f"Here you go, the counting statistics of {username}.\n```" +
-                     f"Correct counts: {correct_counts}\n" +
-                     f"Incorrect counts: {incorrect_counts}\n" + 
-                     f"Total counts: {total_counts}\n" +
-                     f"Percent correct: {percent_correct}%\n" +
-                     f"Active in Discord servers: {active_in_guilds}```" +
-                     f"{chad_or_not}")
-        await interaction.response.send_message(full_text)
+            # End of defining statistics
+            full_text = (f"**Correct counts:** {correct_counts}\n" +
+                        f"**Incorrect counts:** {incorrect_counts}\n" + 
+                        f"**Total counts:** {total_counts}\n" +
+                        f"**Percent correct:** {percent_correct}%\n" +
+                        f"**Active in Discord servers:** {active_in_guilds}\n" +
+                        f"{chad_level}")
+            embed = discord.Embed(title=f"Here you go, the user statistics of {username}", color=chadcounting_color)
+            embed.add_field(name="", value=full_text)
+            await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
 
@@ -880,13 +937,19 @@ async def serverstats(interaction: discord.Integration):
         users = guild_data[guild_id]["users"]
         user_list = [(user_id, user_data["correct_counts"], user_data["incorrect_counts"]) for user_id, user_data in users.items()]
         sorted_user_list = sorted(user_list, key=lambda x: (x[1] + x[2], x[1]), reverse=True)
-        full_text = "Here you go chad, the server statistics:\n"
+        full_text = ""
         for i, user in enumerate(sorted_user_list[:10]):
             user_id, correct_counts, incorrect_counts = user
             user_id = await bot.fetch_user(user_id)
             total_counts = correct_counts + incorrect_counts
-            full_text += f"> {i+1}. {user_id} - {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
-        await interaction.response.send_message(full_text)
+            full_text += f"**{i+1}. {user_id}** - {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
+        if len(full_text) > 0:
+            embed = discord.Embed(title="Here you go, the server statistics", color=chadcounting_color)
+            embed.add_field(name="", value=full_text)
+        else:
+            embed = discord.Embed(title="Server statistics", color=chadcounting_color)
+            embed.add_field(name="", value="Nobody has participated in ChadCounting yet. Shame. Start counting!")
+        await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
 #endregion
