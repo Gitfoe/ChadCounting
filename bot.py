@@ -30,8 +30,8 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
-is_ready = False
-bot_version = "Feb-6-2023-no2"
+is_ready = False # Turns to True after Discord finished on_ready()
+bot_version = "Feb-6-2023-no3"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -44,15 +44,13 @@ bot = commands.Bot(command_prefix='/', help_command=None, intents=intents)
 @bot.event
 async def on_ready():
     """Discord event that gets triggered once the connection has been established."""
-    try:
+    try: # Sync bot commands
         synced = await bot.tree.sync()
     except Exception as e:
         print(e)
     init_guild_data()
-    if dev_mode:
-        await check_for_missed_counts(dev_mode_guild_id)
-    else:
-        for guild in bot.guilds:
+    for guild in bot.guilds:
+        if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
     global is_ready        
     is_ready = True
@@ -73,13 +71,47 @@ async def on_guild_join(guild):
 async def check_for_missed_counts(guild_id):
     """Checks for up to 100 messages of counts that have not been counted because the bot was not running."""
     last_message = guild_data[guild_id]["previous_message"]
-    if last_message != None:
-        counting_channel = bot.get_channel(guild_data[guild_id]["counting_channel"])
-        async for message in counting_channel.history(limit=100, after=last_message):
-            await check_count_message(message) 
-
+    if last_message == None:
+        return
+    counting_channel = bot.get_channel(guild_data[guild_id]["counting_channel"])
+    message_count = 0
+    correct_count_amount = 0
+    incorrect_count = False
+    async for message in counting_channel.history(limit=100, after=last_message):
+        message_count += 1 # Count a message
+        correct_count = await check_count_message(message)
+        if correct_count == True:
+            correct_count_amount += 1 # Count a correct count
+        elif correct_count == False:
+            incorrect_count = True
+            break # Stop checking messages after an incorrect count was logged
+    if correct_count_amount > 0 or incorrect_count == True:
+        embed = discord.Embed(title="ChadCounting is back on track!", color=chadcounting_color)
+        current_count = guild_data[guild_id]["current_count"]
+        message = ("ChadCounting was offline for a bit and missed some of your counts. " +
+                  f"In total, we caught up to {message_count} messages, and {correct_count_amount} messages were a correct count.")
+        if incorrect_count == True: # If someone did an incorrect count while offline
+            message += (" However, there was an incorrect count... After an incorrect count, you must start over. " +
+                        f"Any counts you lads might have made after the incorrect count were not counted.")
+            continue_message = "Please start counting again from **1!**"
+            # Set previous_message to now, so if the bot goes offline after going online immediately, it knows where to start looking
+            guild_data[guild_id]["previous_message"] = datetime.now()
+            write_guild_data(guild_data)
+        elif message_count >= 100: # If the message history limit was reached
+            message += f" Unfortunately, {message_count} is the maximum number of messages we can check. Any counts after count {current_count} have not been counted."
+            continue_message = f"The current count is **{current_count}**. Please continue counting from there! Anyone can continue counting."
+            guild_data[guild_id]["previous_message"] = datetime.now() # If bot goes offline again
+            guild_data[guild_id]["previous_user"] = None # In this case, reset previous user, so anyone can continue counting
+            write_guild_data(guild_data)
+        else:
+            continue_message = f"Continue counting from **{current_count}!**"
+        embed.add_field(name="", value=message, inline=False)
+        embed.add_field(name="", value=continue_message, inline=False)
+        await counting_channel.send(embed=embed)
+        
 async def check_count_message(message):
-    """Checks if the user has counted correctly and reacts with an emoji if so."""
+    """Checks if the user has counted correctly and reacts with an emoji if so. Also checks for incorrect counts."""
+    """Returns True if the message was a correct count and False if it was incorrect. Returns nothing if count wasn't checked."""
     global guild_data
     # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
     if message.author.bot or dev_mode and not message.guild.id == dev_mode_guild_id:
@@ -121,12 +153,16 @@ async def check_count_message(message):
                     guild_data[guild_id]["previous_message"] = message.created_at # Save datetime the message was sent
                     if highest_count < current_count: # New high score
                         guild_data[guild_id]["highest_count"] = current_count
+                    correct_count = True
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
+                    correct_count = False
             else:
                 pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
                 await handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount) # Repeated count
+                correct_count = False
             write_guild_data(guild_data)
+            return correct_count
 
 async def handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount=None):
     """Sends the correct error message to the user for counting incorrectly.
@@ -204,10 +240,8 @@ def init_guild_data():
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
-        if dev_mode:
-            add_or_update_new_guild_data(dev_mode_guild_id)
-        else:
-            for guild in bot.guilds:
+        for guild in bot.guilds:
+            if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
                 add_or_update_new_guild_data(guild.id)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
 
@@ -469,18 +503,18 @@ async def check_correct_channel(interaction):
     counting_channel = guild_data[interaction.guild.id]["counting_channel"]
     embed = discord.Embed(title="Incorrect channel", color=chadcounting_color)
     channel_error = f"You can only execute ChadCounting commands in the counting channel, "
-    if interaction.channel.id != counting_channel:
+    if counting_channel == None:
+        channel_error += (f"however, it has not been set yet. " +
+                          f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
+        embed.add_field(name="", value=channel_error)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return False
+    elif interaction.channel.id != counting_channel:
         channel = interaction.guild.get_channel(counting_channel)
         if channel is not None:
             channel_error += f"which is **'{channel.name}'** Use `/help` for more information."
         else:
             channel_error += "however, it doesn't exist anymore. Contact your server admin if you believe this is an error."
-        embed.add_field(name="", value=channel_error)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return False
-    elif counting_channel == None:
-        channel_error = (f"however, it has not been set yet. " +
-                         f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
         embed.add_field(name="", value=channel_error)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
@@ -765,7 +799,7 @@ async def currentcount(interaction: discord.Integration):
             return
         current_count = guild_data[interaction.guild.id]["current_count"]
         embed = discord.Embed(title="Current count", color=chadcounting_color)
-        embed.add_field(name="", value=f"The current count is {current_count}. So what should the next number be? That's up to you chads.")
+        embed.add_field(name="", value=f"The current count is **{current_count}**. So what should the next number be? That's up to you chads.")
         await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
@@ -780,25 +814,25 @@ async def highscore(interaction: discord.Integration):
         current_count = guild_data[guild_id]["current_count"]
         average_count = round(calculate_average_count_of_guild(guild_id), 2)
         amount_of_attempts = len(guild_data[guild_id]["previous_counts"])
-        full_text = f"The high score is {highest_count}. "
+        full_text = f"The high score is **{highest_count}**. "
         points = 0 # Points get calculated for the last suffix
         if highest_count > current_count:
-            full_text += f"That's {highest_count - current_count} higher than the current count... "
+            full_text += f"That's **{highest_count - current_count}** higher than the current count... "
         else:
             full_text += "That's exactly the same as the current count! "
             if highest_count >= 27: # Only award points if it's higher than or equal to 27
                 points += 1
-        full_text += f"On average you lads counted to {average_count}, and your current count is "
+        full_text += f"On average you lads counted to **{average_count}**, and your current count is "
         if current_count > average_count:
-            full_text += f"{round(current_count - average_count, 2)} higher than the average. "
+            full_text += f"**{round(current_count - average_count, 2)}** higher than the average. "
             points += 2 if average_count >= 27 else 1 # Award less points if average not at least 27
         elif current_count < average_count:
-            full_text += f"{round(average_count - current_count, 2)} lower than the average... "
+            full_text += f"**{round(average_count - current_count, 2)}** lower than the average... "
         else:
             full_text += "exactly the same as the average. "
             if average_count >= 27: # Only award points if average is higher than or equal to 27
                 points += 1
-        full_text += f"You lads messed up the count {amount_of_attempts} "
+        full_text += f"You lads messed up the count **{amount_of_attempts}** "
         full_text += "time. " if amount_of_attempts == 1 else "times. "
         full_text += {0: "Do better, beta's.", 
                       1: "Decent work.", 
@@ -893,43 +927,43 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
             user_id = user.id
             username = user.name
             username_mention = user.mention
-        # Define statistics
         if user_id not in guild_data[guild_id]["users"]:
             full_text = f"I can't give you the stats of {username_mention}, because they haven't participated in ChadCounting yet. Shame."
             embed = discord.Embed(title="User statistics", color=chadcounting_color)
             embed.add_field(name="", value=full_text)
             await interaction.response.send_message(embed=embed)
         else:
+            # Define statistics
             correct_counts = guild_data[guild_id]["users"][user_id]["correct_counts"]
             incorrect_counts = guild_data[guild_id]["users"][user_id]["incorrect_counts"]
             total_counts = correct_counts + incorrect_counts
             if total_counts > 0:
                 percent_correct = round((correct_counts / (total_counts)) * 100)
-                thresholds = {99: "What an absolute gigachad.",
-                              95: "Chad performance.",
-                              90: "Not bad, not good.",
-                              80: "Nearing beta performance. Do better.",
-                              70: "Definitely not chad performance."}
-                chad_level = "Full beta performance. Become chad." # Default value if lower than lowest threshold
-                for threshold, message in thresholds.items():
-                    if percent_correct >= threshold:
-                        chad_level = message
-                        break
             else:
                 percent_correct = "N/A"
             active_in_guilds = 0
             for values in guild_data.values():
                 if user_id in values["users"]:
                     active_in_guilds += 1
+            thresholds = {99: "What an absolute gigachad.",
+                          95: "Chad performance.",
+                          90: "Not bad, not good.",
+                          80: "Nearing beta performance. Do better.",
+                          70: "Definitely not chad performance."}
+            chad_level = "Full beta performance. Become chad." # Default value if lower than lowest threshold
+            for threshold, message in thresholds.items():
+                if percent_correct >= threshold:
+                    chad_level = message
+                    break
             # End of defining statistics
             full_text = (f"**Correct counts:** {correct_counts}\n" +
-                        f"**Incorrect counts:** {incorrect_counts}\n" + 
-                        f"**Total counts:** {total_counts}\n" +
-                        f"**Percent correct:** {percent_correct}%\n" +
-                        f"**Active in Discord servers:** {active_in_guilds}\n" +
-                        f"{chad_level}")
+                         f"**Incorrect counts:** {incorrect_counts}\n" + 
+                         f"**Total counts:** {total_counts}\n" +
+                         f"**Percent correct:** {percent_correct}%\n" +
+                         f"**Active in Discord servers:** {active_in_guilds}")
             embed = discord.Embed(title=f"Here you go, the user statistics of {username}", color=chadcounting_color)
             embed.add_field(name="", value=full_text)
+            embed.set_footer(text=chad_level)
             await interaction.response.send_message(embed=embed)
     except Exception as e:
         await command_exception(interaction, e)
