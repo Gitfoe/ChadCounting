@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False # Turns to True after Discord finished on_ready()
-bot_version = "Feb-6-2023-no3"
+bot_version = "Feb-6-2023-no4"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -108,7 +108,7 @@ async def check_for_missed_counts(guild_id):
         embed.add_field(name="", value=message, inline=False)
         embed.add_field(name="", value=continue_message, inline=False)
         await counting_channel.send(embed=embed)
-        
+
 async def check_count_message(message):
     """Checks if the user has counted correctly and reacts with an emoji if so. Also checks for incorrect counts."""
     """Returns True if the message was a correct count and False if it was incorrect. Returns nothing if count wasn't checked."""
@@ -240,9 +240,9 @@ def init_guild_data():
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
-        for guild in bot.guilds:
-            if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
-                add_or_update_new_guild_data(guild.id)
+        for guild_id in guild_data:
+            if not dev_mode or (dev_mode and guild_id == dev_mode_guild_id):
+                add_or_update_new_guild_data(guild_id)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
 
 def add_or_update_new_guild_data(guild_id):
