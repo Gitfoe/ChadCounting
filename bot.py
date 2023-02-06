@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False
-bot_version = "Feb-6-2023-no1"
+bot_version = "Feb-6-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -98,8 +98,11 @@ async def check_count_message(message):
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
         if banning and current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
-            await message.reply(f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta.\n" + 
-                                f"The current count stays on {current_count}. Other users can continue counting.")
+            embed = discord.Embed(title="You can't count now!", color=chadcounting_color)
+            ban_message = (f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta. " + 
+                           f"The current count stays on {current_count}. Other users can continue counting.")
+            embed.add_field(name="", value=ban_message)
+            await message.reply(embed=embed)
         # End of ban logic
         else:
             if current_user != previous_user:
@@ -109,7 +112,7 @@ async def check_count_message(message):
                     for r in correct_reactions:
                         await message.add_reaction(r)
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
-                    if str(current_count).find("69") != -1:
+                    if str(current_count + 1).find("69") != -1:
                         await message.add_reaction("💦")
                     # Save new counting data
                     guild_data[guild_id]["current_count"] += 1 # Current count increases by one
@@ -162,7 +165,9 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
                 if current_user_minutes_ban > maximum_ban:
                     full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
         # End of user ban logic
-        await message.reply(full_text)
+        embed = discord.Embed(title="Incorrect number!", color=chadcounting_color)
+        embed.add_field(name="", value=full_text)
+        await message.reply(embed=embed)
     else: # Pass/do nothing if passing of double counting is allowed
         pass
 #endregion
@@ -383,7 +388,7 @@ def minutes_to_fancy_string(minutes, short = False):
         return (f"{minutes}{minutes_text}")
 #endregion
 
-#region Other helper functions and classes
+#region Other helper functions
 def calculate_average_count_of_guild(guild_id):
     """Calculates the mean of the previous_counts in a certain guild_id and returns 0 if there aren't any."""
     previous_counts = guild_data[guild_id]["previous_counts"]
@@ -391,40 +396,6 @@ def calculate_average_count_of_guild(guild_id):
         return statistics.mean(previous_counts)
     else:
         return 0
-
-async def check_correct_channel(interaction):
-    """Checks if the command has been executed in the correct channel. Sends a response and returns False if not."""
-    global guild_data
-    counting_channel = guild_data[interaction.guild.id]["counting_channel"]
-    embed = discord.Embed(title="Incorrect channel", color=chadcounting_color)
-    channel_error = f"You can only execute ChadCounting commands in the counting channel, "
-    if interaction.channel.id != counting_channel:
-        channel = interaction.guild.get_channel(counting_channel)
-        if channel is not None:
-            channel_error += f"which is '{channel.name}' Use `/help` for more information."
-        else:
-            channel_error += "however, it doesn't exist anymore. Contact your server admin if you believe this is an error."
-        embed.add_field(name="", value=channel_error)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return False
-    elif counting_channel == None:
-        channel_error = (f"however, it has not been set yet. " +
-                         f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
-        embed.add_field(name="", value=channel_error)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return False
-    else:
-        return True
-
-async def check_bot_ready(interaction):
-    """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
-    embed = discord.Embed(title="ChadCounting is preparing for takeoff", color=chadcounting_color)
-    if not is_ready:
-        embed.add_field(name="", value=f"ChadCounting is still starting up, please try again in a couple of seconds!")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        return is_ready
-    else:
-        return is_ready
 
 def extract_discord_emojis(text):
     """Extracts unicode and custom emojis into a list, preserving order."""
@@ -461,7 +432,9 @@ def adjust_font_size(title, max_font_size):
         font_size -= 1
         title_width = len(title) * (font_size / max_font_size)
     return font_size
+#endregion
 
+#region Command helper functions
 async def handle_reaction_setting(interaction, reactions, embed):
     """Handles the reaction setting and sends the response. Part of /setreactions command."""
     changes_string = "\nNo changes were made to the reactions. Try again, chad."
@@ -489,6 +462,40 @@ async def command_exception(interaction, exception):
     embed = discord.Embed(title="Error", color=chadcounting_color)
     embed.add_field(name="", value=error)
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+async def check_correct_channel(interaction):
+    """Checks if the command has been executed in the correct channel. Sends a response and returns False if not."""
+    global guild_data
+    counting_channel = guild_data[interaction.guild.id]["counting_channel"]
+    embed = discord.Embed(title="Incorrect channel", color=chadcounting_color)
+    channel_error = f"You can only execute ChadCounting commands in the counting channel, "
+    if interaction.channel.id != counting_channel:
+        channel = interaction.guild.get_channel(counting_channel)
+        if channel is not None:
+            channel_error += f"which is **'{channel.name}'** Use `/help` for more information."
+        else:
+            channel_error += "however, it doesn't exist anymore. Contact your server admin if you believe this is an error."
+        embed.add_field(name="", value=channel_error)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return False
+    elif counting_channel == None:
+        channel_error = (f"however, it has not been set yet. " +
+                         f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
+        embed.add_field(name="", value=channel_error)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return False
+    else:
+        return True
+
+async def check_bot_ready(interaction):
+    """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
+    embed = discord.Embed(title="ChadCounting is preparing for takeoff", color=chadcounting_color)
+    if not is_ready:
+        embed.add_field(name="", value=f"ChadCounting is still starting up, please try again in a couple of seconds!")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return is_ready
+    else:
+        return is_ready
 #endregion
 
 #region View subclasses
