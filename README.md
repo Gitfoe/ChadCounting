@@ -1,9 +1,13 @@
 # ChadCounting
 <img align="right" src="logo_chadcounting.png" width="172">
 
-ChadCounting is a Discord bot designed to facilitate collaborative counting on your server. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. In contrast to other counting bots, ChatCounting is specifically optimized to minimize missed counts in case the bot is offline, making it the perfect tool for your server's counting needs.
+ChadCounting is a Discord bot that makes it easy for users on a server to collaborate on counting. With an emphasis on accuracy and reliability, ChadCounting is the ideal choice for gigachads who want to push their skills to the limit. In contrast to other counting bots, ChatCounting is specifically optimized to prevent the ability for incorrect counting on the bots side, making it the perfect tool for your server's counting needs.
 
-### [Click here to add the bot to your server/guild](https://discord.com/api/oauth2/authorize?client_id=1066081427935993886&permissions=67648&scope=bot)
+### [Click here to add the bot to your server/guild](https://discord.com/api/oauth2/authorize?client_id=1066081427935993886&permissions=329792&scope=bot)
+
+As an avid user of counting bots myself, one of the main issues I've encountered with other counting bots is that they had difficulty counting themselves. Most of the time, when the count was ruined, it was not because of our inability to count like chads, but the counting bot's inability to keep up with our chadness. The bots went offline, didn't count our counts, then came back telling us we've ruined the count and should start over. Or the bot didn't react to our correct count, then we counted the number again, and it told us we can't count twice in a row. Frustrating for highly-capable counting chads. That's why I've developed ChadCounting.
+
+One of the distinctive features of ChadCounting is the catch-up feature. When ChadCounting was offline for a little bit (e.g. due to maintenance), the bot catches up to missed counts and lets you know that it did so. This means that when ChadCounting didn't respond with an emoji to your message, you can still continue counting, because you have the peace of mind that the bot will catch up to you. But of course, that's not the only distinctive feature!
 
 ## Features
 - Counting from 1 to infinity in one designated Discord channel,
@@ -44,12 +48,12 @@ pip3 install -U matplotlib (confirmed with version 3.6.3)
 pip3 install -U pytz (confirmed with version 2022.7.1)
 ```
 ### Discord Developer Portal bot settings
-When creating your own fork of ChadCounting, ensure your bot has the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. The scope should be `bot`.
+When creating your own fork of ChadCounting, ensure your bot has at least the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. `Use External Emojis` is an optional permission, but recommended. The scope should be `bot`.
 
 ### Dev-mode
 In the 'Initialisation' section of the bot.py file, the dev_mode can be enabled to facilitate the testing of real-world scenarios. By enabling dev-mode, the bot can be configured to operate solely within a designated (testing) guild, thus preventing beta code from impacting production guilds. It is recommended to have two separate Discord bots, one for production and one for development, to safely test new code without putting the production environment at risk.
 
-[Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=67648&scope=bot)
+[Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=329792&scope=bot)
 
 ### Updating the database
 After changing values in the database, the current guilds need to be updated to corrospond to the new database values. Ensure to enable `update_guild_data` in the 'Initialisation' region of the bot.py file. The script will automatically create a backup of guild_data before updating. After updating and seeing `ChadCounting is ready` in the terminal, you can disable updating again.

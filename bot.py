@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = False # Turns to True after Discord finished on_ready()
-bot_version = "Feb-6-2023-no4"
+bot_version = "Feb-8-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -141,6 +141,7 @@ async def check_count_message(message):
                 if message.content.startswith(str(current_count + 1)):
                     # Acknowledge a correct count
                     correct_reactions = guild_data[guild_id]["s_correct_reaction"]
+                    correct_reactions = remove_unavailable_emoji(correct_reactions, "🙂")
                     for r in correct_reactions:
                         await message.add_reaction(r)
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
@@ -169,6 +170,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
     No value for 'pass_doublecount' entered means that it is not a double count."""
     if pass_doublecount == None or pass_doublecount == False: # Only check incorrect counting if passing double counting allowed
         incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
+        incorrect_reactions = remove_unavailable_emoji(incorrect_reactions, "💀")
         for r in incorrect_reactions:
             await message.add_reaction(r)
         guild_data[guild_id]["previous_counts"].append(current_count) # Save the count
@@ -431,7 +433,7 @@ def calculate_average_count_of_guild(guild_id):
     else:
         return 0
 
-def extract_discord_emojis(text):
+def extract_discord_emoji(text):
     """Extracts unicode and custom emojis into a list, preserving order."""
     emoji_list = []
     # Unicode emoji
@@ -466,25 +468,43 @@ def adjust_font_size(title, max_font_size):
         font_size -= 1
         title_width = len(title) * (font_size / max_font_size)
     return font_size
+
+def remove_unavailable_emoji(emoji_list, default_emoji=None):
+    """Filter out custom emoji that the bot can't display, replace them with default emoji if there's no emoji left."""
+    for emoji in emoji_list:
+        if emoji[0] == "<": # Custom Discord emoji start with <
+            emoji_id = int(re.search(r':\d+', emoji).group()[1:])
+            loaded_emoji = bot.get_emoji(emoji_id) # Check if the bot can use it
+            if loaded_emoji == None:
+                emoji_list.remove(emoji) # Remove from list if not
+    if not emoji_list and default_emoji != None:
+        emoji_list.append(default_emoji)
+    return emoji_list
 #endregion
 
 #region Command helper functions
 async def handle_reaction_setting(interaction, reactions, embed):
     """Handles the reaction setting and sends the response. Part of /setreactions command."""
     changes_string = "\nNo changes were made to the reactions. Try again, chad."
-    converted_string = extract_discord_emojis(reactions)
-    converted_string_len = len(converted_string)
-    if converted_string_len < 1 or converted_string_len > 10:
-        full_text = f"Please enter no less than 1 and no more than 10 emoji for one reaction. You entered {converted_string_len} emoji.{changes_string}"
+    emoji_string = extract_discord_emoji(reactions)
+    emoji_string_length = len(emoji_string)
+    filtered_emoji_string_length = len(remove_unavailable_emoji(emoji_string))
+    if emoji_string_length < 1 or emoji_string_length > 10:
+        full_text = f"Please enter no less than 1 and no more than 10 emoji for one reaction. You entered {emoji_string_length} emoji.{changes_string}"
+        embed.add_field(name="", value=full_text)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return None
+    elif emoji_string_length > filtered_emoji_string_length:
+        full_text = f"One or more emoji could not be set, likely because ChadCounting doesn't have access to that emoji.{changes_string}"
         embed.add_field(name="", value=full_text)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return None
     else:
-        configure = True
-        return converted_string
+        return emoji_string
 
 async def command_exception(interaction, exception):
     """Sends the traceback of a command exception to the user. Traceback if it fits as a Discord message, exception if not."""
+    traceback.print_exc()
     error = f"An error occured executing the command. Please send this to a developer of ChadCounting:\n```"
     trace = f"{traceback.format_exc()}```"
     if len(error) + len(trace) > 2000:
@@ -758,7 +778,7 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
             guild_id = interaction.guild.id
             embed = discord.Embed(title="Reaction settings", color=chadcounting_color)
             # Check if any of the parameters have been entered
-            configure = all(v is not None for v in (correct_reactions, incorrect_reactions))
+            configure = any([correct_reactions, incorrect_reactions])
             if configure and not interaction.user.guild_permissions.administrator:
                 full_text = "Sorry, you don't have the rights to change the bot's reactions."
                 embed.add_field(name="", value=full_text)
@@ -769,15 +789,15 @@ async def setreactions(interaction: discord.Integration, correct_reactions: str=
                 if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_correct_reaction"] = response
-                configure = True
             if incorrect_reactions != None:
                 response = await handle_reaction_setting(interaction, incorrect_reactions, embed)
                 if response == None: # None or incorrect amount of emoji
                     return
                 guild_data[guild_id]["s_incorrect_reaction"] = response
-                configure = True
             s_correct_reactions = guild_data[guild_id]["s_correct_reaction"]
             s_incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
+            s_correct_reactions = remove_unavailable_emoji(s_correct_reactions, "🙂")
+            s_incorrect_reactions = remove_unavailable_emoji(s_incorrect_reactions, "💀")
             setting_string = (f"**Correct count reaction(s):** {''.join(str(i) for i in s_correct_reactions)}\n" +
                               f"**Incorrect count reaction(s):** {''.join(str(i) for i in s_incorrect_reactions)}\n")
             if configure:
