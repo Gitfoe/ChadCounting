@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Feb-14-2023-no1"
+bot_version = "Feb-14-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -59,8 +59,6 @@ async def on_ready():
 @bot.event
 async def on_resumed():
     """Discord event that gets triggered once a bot gets resumed from a paused session."""
-    global is_ready
-    is_ready = True
     print(f"ChadCounting has resumed.")
 
 @bot.event
@@ -249,14 +247,17 @@ def init_guild_data():
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
-        for guild_id in guild_data:
-            if not dev_mode or (dev_mode and guild_id == dev_mode_guild_id):
-                add_or_update_new_guild_data(guild_id)
+        for guild in bot.guilds:
+            if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
+                add_or_update_new_guild_data(guild.id)
+        if update_guild_data: # If updating is on, also check the existing guilds in guild_data (if the bot left a guild)
+            for guild_id in guild_data:
+                if not dev_mode or (dev_mode and guild_id == dev_mode_guild_id):
+                    add_or_update_new_guild_data(guild_id)
         print(f"Successfully loaded {len(guild_data)} guild(s).")
 
 def add_or_update_new_guild_data(guild_id):
     """Adds new guilds and/or users to guild_data and updates them if needed."""
-    global update_guild_data
     add_guild_to_guild_data(guild_id, update_guild_data)
     if update_guild_data:
         for user_id in guild_data[guild_id]["users"]:
