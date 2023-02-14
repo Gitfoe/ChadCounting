@@ -30,8 +30,8 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
-is_ready = False # Turns to True after Discord finished on_ready()
-bot_version = "Feb-8-2023-no1"
+is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
+bot_version = "Feb-14-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -55,6 +55,13 @@ async def on_ready():
     global is_ready        
     is_ready = True
     print(f"ChadCounting is ready.")
+
+@bot.event
+async def on_resumed():
+    """Discord event that gets triggered once a bot gets resumed from a paused session."""
+    global is_ready
+    is_ready = True
+    print(f"ChadCounting has resumed.")
 
 @bot.event
 async def on_message(message):
@@ -545,7 +552,7 @@ async def check_bot_ready(interaction):
     """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
     embed = discord.Embed(title="ChadCounting is preparing for takeoff", color=chadcounting_color)
     if not is_ready:
-        embed.add_field(name="", value=f"ChadCounting is still starting up, please try again in a couple of seconds!")
+        embed.add_field(name="", value=f"ChadCounting is starting up, please try again in a couple of seconds!")
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return is_ready
     else:
