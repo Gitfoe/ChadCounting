@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Feb-14-2023-no2"
+bot_version = "Feb-21-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -144,11 +144,6 @@ async def check_count_message(message):
         else:
             if current_user != previous_user:
                 if message.content.startswith(str(current_count + 1)):
-                    # Acknowledge a correct count
-                    correct_reactions = guild_data[guild_id]["s_correct_reaction"]
-                    correct_reactions = remove_unavailable_emoji(correct_reactions, "🙂")
-                    for r in correct_reactions:
-                        await message.add_reaction(r)
                     # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
                     if str(current_count + 1).find("69") != -1:
                         await message.add_reaction("💦")
@@ -157,27 +152,28 @@ async def check_count_message(message):
                     guild_data[guild_id]["users"][current_user]["correct_counts"] += 1 # Correct count for user logged
                     guild_data[guild_id]["previous_user"] = current_user # Previous user is now the user who counted
                     guild_data[guild_id]["previous_message"] = message.created_at # Save datetime the message was sent
-                    if highest_count < current_count: # New high score
-                        guild_data[guild_id]["highest_count"] = current_count
-                    correct_count = True
+                    if highest_count < current_count: # New high score  
+                        guild_data[guild_id]["highest_count"] = current_count + 1
+                    write_guild_data(guild_data) # Write count data
+                    # Acknowledge a correct count
+                    correct_reactions = guild_data[guild_id]["s_correct_reaction"]
+                    correct_reactions = remove_unavailable_emoji(correct_reactions, "🙂")
+                    for r in correct_reactions:
+                        await message.add_reaction(r)
+                    return True
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
-                    correct_count = False
+                    return False
             else:
                 pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
                 await handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount) # Repeated count
-                correct_count = False
-            write_guild_data(guild_data)
-            return correct_count
+                return False
 
 async def handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount=None):
     """Sends the correct error message to the user for counting incorrectly.
     No value for 'pass_doublecount' entered means that it is not a double count."""
     if pass_doublecount == None or pass_doublecount == False: # Only check incorrect counting if passing double counting allowed
-        incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
-        incorrect_reactions = remove_unavailable_emoji(incorrect_reactions, "💀")
-        for r in incorrect_reactions:
-            await message.add_reaction(r)
+        global guild_data
         guild_data[guild_id]["previous_counts"].append(current_count) # Save the count
         guild_data[guild_id]["current_count"] = 0 # Reset count to 0
         guild_data[guild_id]["previous_user"] = None # Reset previous user to no one so anyone can count again
@@ -208,9 +204,16 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
                 if current_user_minutes_ban > maximum_ban:
                     full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
         # End of user ban logic
+        write_guild_data(guild_data) # Write count data
+        # Embed incorrect number message
         embed = discord.Embed(title="Incorrect number!", color=chadcounting_color)
         embed.add_field(name="", value=full_text)
         await message.reply(embed=embed)
+        # Acknowledge an incorrect count
+        incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
+        incorrect_reactions = remove_unavailable_emoji(incorrect_reactions, "💀")
+        for r in incorrect_reactions:
+            await message.add_reaction(r)
     else: # Pass/do nothing if passing of double counting is allowed
         pass
 #endregion
