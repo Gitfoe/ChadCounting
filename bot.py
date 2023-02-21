@@ -16,7 +16,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import View
+from discord.ui import View, Button
 #endregion
 
 #region Initialisation
@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Feb-21-2023-no1"
+bot_version = "Feb-21-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -592,19 +592,33 @@ class ViewYesNoButtons(View):
         embed = discord.Embed(title=self.title, color=chadcounting_color)
         embed.add_field(name="", value="Timeout: you didn't give an answer. No changes were made.")
         await self.interaction.followup.send(embed=embed, ephemeral=True)
+
+class ViewHelpButtons(View):
+    """Makes a view with some helpful links for the help command."""
+    def __init__(self):
+        super().__init__()
+        buttons = [
+            {"label": "More information", "url": "https://github.com/Gitfoe/ChadCounting", "emoji": "ℹ️"},
+            {"label": "Vote on top.gg", "url": "https://top.gg/bot/1066081427935993886/vote", "emoji": "⬆️"},
+            {"label": "Vote on discordbotlist", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
+        ]
+        for button in buttons:
+            self.add_item(Button(**button))
+
 #endregion
 
 #region Discord commands
 @bot.tree.command(name="help", description="Gives information about ChadCounting.")
 async def currentcount(interaction: discord.Integration):
     try:
+        view = ViewHelpButtons()
         embed = discord.Embed(title="Welcome to ChadCounting", description="ChadCounting is a Discord bot designed to facilitate collaborative counting. With its focus on accuracy and reliability, ChatCounting is the ideal choice for gigachads looking to push their counting abilities to the limit. You're a chad, aren't you? If so, welcome, and start counting in the counting channel!", color=chadcounting_color)
         embed.add_field(name="Slash commands", value="Because this bot makes use of the newest Discord technology, you can use slash commands! The slash commands describe what they do and how to use them. Just type `/` in the chat and see all the commands ChadCounting has to offer.", inline=False)
         embed.add_field(name="Rules", value="In this counting game, users take turns counting with the next number. Double counting by the same user is not allowed. You can use the command `/setbanning` to see this server's configured rules for incorrect counts.", inline=False)
         embed.add_field(name="Counting feedback", value="After a user counts, the bot will respond with emoji to indicate if the count was correct or not. If the bot is unavailable (e.g. due to maintenance) and doesn't respond, you can still continue counting as it will catch up on missed counts upon its return. If you're unsure of the current recorded count, use the command `/currentcount` to check.", inline=False)
-        embed.add_field(name="More information", value="For more information about this bot, go to [the GitHub page.](https://github.com/Gitfoe/ChadCounting)", inline=False)
+        embed.add_field(name="Voting", value="Voting is one of the best ways to support ChadCounting and help it reach more servers. Show your love for accurate counting by casting your vote! You can vote every 12 hours.", inline=False)
         embed.set_footer(text=f"ChadCounting version {bot_version}")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     except Exception as e:
         await command_exception(interaction, e)
 
