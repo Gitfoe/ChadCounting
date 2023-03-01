@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Feb-21-2023-no2"
+bot_version = "Mar-1-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -109,7 +109,7 @@ async def check_for_missed_counts(guild_id):
             guild_data[guild_id]["previous_user"] = None # In this case, reset previous user, so anyone can continue counting
             write_guild_data(guild_data)
         else:
-            continue_message = f"Continue counting from **{current_count}!**"
+            continue_message = f"The current count is **{current_count}**, so continue counting from there!"
         embed.add_field(name="", value=message, inline=False)
         embed.add_field(name="", value=continue_message, inline=False)
         await counting_channel.send(embed=embed)
