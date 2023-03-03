@@ -52,7 +52,7 @@ When creating your own fork of ChadCounting, ensure your bot has at least the `S
 ### Dev-mode
 In the `Initialisation` region of the `bot.py` file, `dev_mode` can be enabled to facilitate the testing of real-world scenarios. By enabling `dev-mode`, the bot can be configured to operate solely within a designated (testing) guild, thus preventing beta code from impacting production guilds. It is recommended to have two separate Discord bots, one for production and one for development, to safely test new code without putting the production environment at risk.
 
-[Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=329792&scope=bot)
+[Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=329920&scope=bot) (this one also has the audit log permissions - possibly temporary to test an upcoming feature)
 
 ### Updating the database
 Counting and guild data is saved to a JSON database, eliminating the need for external database software. After changing values in the database, the current guilds need to be updated to corrospond to the new database values. Ensure to enable `update_guild_data` in the 'Initialisation' region of the bot.py file. The script will automatically create a backup of guild_data before updating. After updating and seeing `ChadCounting is ready` in the terminal, you can disable updating again.

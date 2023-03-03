@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-3-2023-no1"
+bot_version = "Mar-3-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -64,11 +64,59 @@ async def on_resumed():
 @bot.event
 async def on_message(message):
     """Discord event that gets triggered once a message is sent."""
+    if not is_ready:
+        return
     await check_count_message(message)
+
+@bot.event
+async def on_message_delete(message):
+    """Checks if a deleted message is the current count and notify the users of that."""
+    if not is_ready:
+        return
+    global guild_data
+    guild_id = message.guild.id
+    current_count = guild_data[guild_id]["current_count"]
+    # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
+    if message.author.bot or dev_mode and not guild_id == dev_mode_guild_id:
+        return
+    last_count = guild_data[guild_id]["previous_message"]
+    if message.created_at == last_count:
+        # Check who deleted the message in the audit logs
+        deleter = None
+        async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, after=last_count):
+            if entry.target.id == message.author.id:
+                deleter = entry.user
+        if deleter == None: # If the deleter couldn't be found, assume it was the user itself
+            deleter = message.author
+        # Ban logic
+        banning_enabled = guild_data[guild_id]["s_banning"]
+        if banning_enabled:
+            maximum_ban = guild_data[guild_id]["s_maximum_ban"]
+            troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
+            ban_time_for_troll = maximum_ban * troll_amplifier # Ban the deleter of the message for the troll amount
+            success_user_banned = ban_user(deleter.id, guild_id, ban_time_for_troll)
+            write_guild_data(guild_data)
+        else:
+            success_user_banned = None
+        guild_data[guild_id]["previous_user"] = None # Reset previous user to no one so anyone can count again
+        # Message logic
+        embed = discord.Embed(title=f"{deleter.name} deleted a count...", color=chadcounting_color)
+        full_text = (f"It seems that {deleter.mention} deleted the last counting message!" + 
+                    " They likely wanted to purposefully mess up the count. Shame.")
+        if success_user_banned == True:
+            full_text += f" They are now banned for {minutes_to_fancy_string(ban_time_for_troll)} and can't continue counting."
+        elif success_user_banned == False:
+            full_text += " However, as they have never counted with ChadCounting before, they won't get banned. Very lucky..."
+        embed.add_field(name="", value=full_text, inline=False)
+        embed.add_field(name="", value=f"The current count is **{current_count}**. Continue counting from there!", inline=False)
+        counting_channel = bot.get_channel(guild_data[guild_id]["counting_channel"])
+        await counting_channel.send(embed=embed)
 
 @bot.event
 async def on_guild_join(guild):
     """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
+    if not is_ready:
+        return
     add_guild_to_guild_data(guild.id)
 #endregion                                               
 
@@ -136,9 +184,8 @@ async def check_count_message(message):
         if banning and current_user_minutes_ban >= 1:
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
             embed = discord.Embed(title="You can't count now!", color=chadcounting_color)
-            ban_message = (f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta. " + 
-                           f"The current count stays on {current_count}. Other users can continue counting.")
-            embed.add_field(name="", value=ban_message)
+            embed.add_field(name="", value=f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta. ", inline=False)
+            embed.add_field(name="", value=f"The current count stays on **{current_count}**. Other users can continue counting.", inline=False)
             await message.reply(embed=embed)
         # End of ban logic
         else:
@@ -186,8 +233,8 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
         else: # Is a double count
             full_text += f"A user cannot count twice in a row. {suffix_text}"
         # User ban logic
-        banning = guild_data[guild_id]["s_banning"]
-        if banning:
+        banning_enabled = guild_data[guild_id]["s_banning"]
+        if banning_enabled:
             average_count = calculate_average_count_of_guild(guild_id)
             message_count = message.content # What the value was the user sent in the message
             minimum_ban = guild_data[guild_id]["s_minimum_ban"]
@@ -202,8 +249,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
                 current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
                 full_text += f" Moreover, because you messed up, you are now banned for {current_user_ban_string}."
                 if current_user_minutes_ban > maximum_ban:
-                    full_text += f" ⚠️ Don't be a troll, {message.author.name}. ⚠️"
-        # End of user ban logic
+                    full_text += f" ⚠️ **Don't be a troll, {message.author.name}.**"
         write_guild_data(guild_data) # Write count data
         # Embed incorrect number message
         embed = discord.Embed(title="Incorrect number!", color=chadcounting_color)
@@ -401,10 +447,15 @@ def calculate_user_penalization(current_count, average_count, minimum_ban, maxim
         return minutes_ban
 
 def ban_user(user_id, guild_id, ban_time):
-    """Bans a user in a certain guild for a certain amount of time."""
-    guild_data[guild_id]["users"][user_id]["time_banned"] = datetime.now()
-    guild_data[guild_id]["users"][user_id]["ban_time"] = ban_time
-    write_guild_data(guild_data)
+    """Bans a user in a certain guild for a certain amount of time. Returns True if successful."""
+    global guild_data
+    if user_id in guild_data[guild_id]["users"]:
+        guild_data[guild_id]["users"][user_id]["time_banned"] = datetime.now()
+        guild_data[guild_id]["users"][user_id]["ban_time"] = ban_time
+        write_guild_data(guild_data)
+        return True
+    else:
+        return False
 
 def check_user_banned(user_id, guild_id):
     """Checks if the user is still banned, and if so, returns the minutes of banned time."""
