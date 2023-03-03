@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-1-2023-no1"
+bot_version = "Mar-3-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -144,9 +144,6 @@ async def check_count_message(message):
         else:
             if current_user != previous_user:
                 if message.content.startswith(str(current_count + 1)):
-                    # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
-                    if str(current_count + 1).find("69") != -1:
-                        await message.add_reaction("💦")
                     # Save new counting data
                     guild_data[guild_id]["current_count"] += 1 # Current count increases by one
                     guild_data[guild_id]["users"][current_user]["correct_counts"] += 1 # Correct count for user logged
@@ -160,6 +157,9 @@ async def check_count_message(message):
                     correct_reactions = remove_unavailable_emoji(correct_reactions, "🙂")
                     for r in correct_reactions:
                         await message.add_reaction(r)
+                    # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
+                    if str(current_count + 1).find("69") != -1:
+                        await message.add_reaction("💦")
                     return True
                 else:
                     await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
