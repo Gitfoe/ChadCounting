@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-3-2023-no2"
+bot_version = "Mar-4-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -81,27 +81,20 @@ async def on_message_delete(message):
         return
     last_count = guild_data[guild_id]["previous_message"]
     if message.created_at == last_count:
-        # Check who deleted the message in the audit logs
-        deleter = None
-        async for entry in message.guild.audit_logs(action=discord.AuditLogAction.message_delete, after=last_count):
-            if entry.target.id == message.author.id:
-                deleter = entry.user
-        if deleter == None: # If the deleter couldn't be found, assume it was the user itself
-            deleter = message.author
         # Ban logic
         banning_enabled = guild_data[guild_id]["s_banning"]
         if banning_enabled:
             maximum_ban = guild_data[guild_id]["s_maximum_ban"]
             troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
             ban_time_for_troll = maximum_ban * troll_amplifier # Ban the deleter of the message for the troll amount
-            success_user_banned = ban_user(deleter.id, guild_id, ban_time_for_troll)
+            success_user_banned = ban_user(message.author.id, guild_id, ban_time_for_troll)
             write_guild_data(guild_data)
         else:
             success_user_banned = None
         guild_data[guild_id]["previous_user"] = None # Reset previous user to no one so anyone can count again
         # Message logic
-        embed = discord.Embed(title=f"{deleter.name} deleted a count...", color=chadcounting_color)
-        full_text = (f"It seems that {deleter.mention} deleted the last counting message!" + 
+        embed = discord.Embed(title=f"{message.author.name} deleted a count...", color=chadcounting_color)
+        full_text = (f"It seems that {message.author.mention} deleted their last counting message!" + 
                     " They likely wanted to purposefully mess up the count. Shame.")
         if success_user_banned == True:
             full_text += f" They are now banned for {minutes_to_fancy_string(ban_time_for_troll)} and can't continue counting."
