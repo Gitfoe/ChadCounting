@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-4-2023-no1"
+bot_version = "Mar-5-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -189,8 +189,8 @@ async def check_count_message(message):
                     guild_data[guild_id]["users"][current_user]["correct_counts"] += 1 # Correct count for user logged
                     guild_data[guild_id]["previous_user"] = current_user # Previous user is now the user who counted
                     guild_data[guild_id]["previous_message"] = message.created_at # Save datetime the message was sent
-                    if highest_count < current_count: # New high score  
-                        guild_data[guild_id]["highest_count"] = current_count + 1
+                    if highest_count < guild_data[guild_id]["current_count"]: # New high score  
+                        guild_data[guild_id]["highest_count"] = guild_data[guild_id]["current_count"]
                     write_guild_data(guild_data) # Write count data
                     # Acknowledge a correct count
                     correct_reactions = guild_data[guild_id]["s_correct_reaction"]
