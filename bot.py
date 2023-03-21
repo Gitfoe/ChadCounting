@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-5-2023-no1"
+bot_version = "Mar-21-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -135,7 +135,8 @@ async def check_for_missed_counts(guild_id):
         embed = discord.Embed(title="ChadCounting is back on track!", color=chadcounting_color)
         current_count = guild_data[guild_id]["current_count"]
         message = ("ChadCounting was offline for a bit and missed some of your counts. " +
-                  f"In total, we caught up to {message_count} messages, and {correct_count_amount} messages were a correct count.")
+                  f"In total, we caught up to {message_count_to_string(message_count)}, " +
+                  f"and {message_count_to_string(correct_count_amount, True)}")
         if incorrect_count == True: # If someone did an incorrect count while offline
             message += (" However, there was an incorrect count... After an incorrect count, you must start over. " +
                         f"Any counts you lads might have made after the incorrect count were not counted.")
@@ -477,6 +478,18 @@ def minutes_to_fancy_string(minutes, short = False):
         return (f"{hours}{hours_text}")
     else:
         return (f"{minutes}{minutes_text}")
+    
+def message_count_to_string(message_count, suffix = False):
+    """Converts an integer of a message count to a string of a message count and the notation."""
+    if message_count == 1 or message_count == -1:
+        message_string = f"{message_count} message"
+        if suffix:
+            message_string += " was a correct count."
+    else:
+        message_string = f"{message_count} messages"
+        if suffix:
+            message_string += " were correct counts."
+    return message_string
 #endregion
 
 #region Other helper functions
@@ -1084,5 +1097,5 @@ async def serverstats(interaction: discord.Integration):
         await command_exception(interaction, e)
 #endregion
 
-bot.run(DEV_TOKEN)
+bot.run(TOKEN)
 # Coded by https://github.com/Gitfoe
