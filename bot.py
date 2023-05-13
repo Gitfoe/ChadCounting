@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "May-13-2023-no1"
+bot_version = "May-13-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -540,12 +540,6 @@ def extract_number_from_string(string):
         return int(num_str)
     else:
         return None
-
-# Example usage:
-string = "157lol yeah, also 555"
-result = extract_number_from_string(string)
-print(result)
-
 
 def adjust_font_size(title, max_font_size):
     """Adjusts a font size to be smaller on longer texts."""
