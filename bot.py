@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Mar-21-2023-no1"
+bot_version = "May-13-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -184,7 +184,7 @@ async def check_count_message(message):
         # End of ban logic
         else:
             if current_user != previous_user:
-                if message.content.startswith(str(current_count + 1)):
+                if extract_number_from_string(message.content) == current_count + 1:
                     # Save new counting data
                     guild_data[guild_id]["current_count"] += 1 # Current count increases by one
                     guild_data[guild_id]["users"][current_user]["correct_counts"] += 1 # Correct count for user logged
@@ -246,7 +246,7 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
                     full_text += f" ⚠️ **Don't be a troll, {message.author.name}.**"
         write_guild_data(guild_data) # Write count data
         # Embed incorrect number message
-        embed = discord.Embed(title="Incorrect number!", color=chadcounting_color)
+        embed = discord.Embed(title="Whoops...!", color=chadcounting_color)
         embed.add_field(name="", value=full_text)
         await message.reply(embed=embed)
         # Acknowledge an incorrect count
@@ -527,6 +527,25 @@ def format_current_datetime(date_time, timezone, spaces):
         return date_time.strftime("%Y%m%d-%H%M%S-%Z")
     else:
         return ""
+    
+def extract_number_from_string(string):
+    """Gathers numbers at the start of a string and returns them in integer form."""
+    num_str = ""
+    for char in string:
+        if char.isdigit():
+            num_str += char
+        else:
+            break
+    if num_str:
+        return int(num_str)
+    else:
+        return None
+
+# Example usage:
+string = "157lol yeah, also 555"
+result = extract_number_from_string(string)
+print(result)
+
 
 def adjust_font_size(title, max_font_size):
     """Adjusts a font size to be smaller on longer texts."""
