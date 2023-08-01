@@ -30,8 +30,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
-is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "Aug-1-2023-no1"
+bot_version = "Aug-1-2023-no2"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -52,26 +51,27 @@ async def on_ready():
     for guild in bot.guilds:
         if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
-    global is_ready        
-    is_ready = True
     print(f"ChadCounting is ready.")
 
 @bot.event
 async def on_resumed():
     """Discord event that gets triggered once a bot gets resumed from a paused session."""
+    for guild in bot.guilds:
+        if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
+            await check_for_missed_counts(guild.id)
     print(f"ChadCounting has resumed.")
 
 @bot.event
 async def on_message(message):
     """Discord event that gets triggered once a message is sent."""
-    if not is_ready:
+    if bot.is_ready() is not True:
         return
     await check_count_message(message)
 
 @bot.event
 async def on_message_delete(message):
     """Checks if a deleted message is the current count and notify the users of that."""
-    if not is_ready:
+    if bot.is_ready() is not True:
         return
     global guild_data
     guild_id = message.guild.id
@@ -108,7 +108,7 @@ async def on_message_delete(message):
 @bot.event
 async def on_guild_join(guild):
     """When a new guild adds the bot, this function is called, and the bot is added to guild_data."""
-    if not is_ready:
+    if bot.is_ready() is not True:
         return
     add_guild_to_guild_data(guild.id)
 #endregion                                               
@@ -123,14 +123,18 @@ async def check_for_missed_counts(guild_id):
     message_count = 0
     correct_count_amount = 0
     incorrect_count = False
-    async for message in counting_channel.history(limit=100, after=last_message):
-        message_count += 1 # Count a message
-        correct_count = await check_count_message(message)
-        if correct_count == True:
-            correct_count_amount += 1 # Count a correct count
-        elif correct_count == False:
-            incorrect_count = True
-            break # Stop checking messages after an incorrect count was logged
+    permissions = counting_channel.permissions_for(counting_channel.guild.me)
+    if permissions.read_message_history:
+        async for message in counting_channel.history(limit=100, after=last_message):
+            message_count += 1 # Count a message
+            correct_count = await check_count_message(message)
+            if correct_count == True:
+                correct_count_amount += 1 # Count a correct count
+            elif correct_count == False:
+                incorrect_count = True
+                break # Stop checking messages after an incorrect count was logged
+    else:
+        print(f"check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
     if correct_count_amount > 0 or incorrect_count == True:
         embed = discord.Embed(title="ChadCounting is back on track!", color=chadcounting_color)
         current_count = guild_data[guild_id]["current_count"]
@@ -625,12 +629,11 @@ async def check_correct_channel(interaction):
 async def check_bot_ready(interaction):
     """Checks if the bot is ready and sends a reaction explaining that the bot is still starting up if not."""
     embed = discord.Embed(title="ChadCounting is preparing for takeoff", color=chadcounting_color)
-    if not is_ready:
+    if bot.is_ready() is not True:
         embed.add_field(name="", value=f"ChadCounting is starting up, please try again in a couple of seconds!")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        return is_ready
-    else:
-        return is_ready
+        return False
+    return True
 #endregion
 
 #region View subclasses
