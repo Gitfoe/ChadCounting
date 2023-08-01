@@ -31,7 +31,7 @@ TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
 is_ready = None # Turns to True after Discord finished on_ready() and on_resumed()
-bot_version = "May-13-2023-no2"
+bot_version = "Aug-1-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -1053,14 +1053,14 @@ async def userstats(interaction: discord.Integration, user: discord.Member=None)
             incorrect_counts = guild_data[guild_id]["users"][user_id]["incorrect_counts"]
             total_counts = correct_counts + incorrect_counts
             if total_counts > 0:
-                percent_correct = round((correct_counts / (total_counts)) * 100)
+                percent_correct = round((correct_counts / (total_counts)) * 100, 2)
             else:
                 percent_correct = "N/A"
             active_in_guilds = 0
             for values in guild_data.values():
                 if user_id in values["users"]:
                     active_in_guilds += 1
-            thresholds = {99: "What an absolute gigachad.",
+            thresholds = {99.5: "What an absolute gigachad.",
                           95: "Chad performance.",
                           90: "Not bad, not good.",
                           80: "Nearing beta performance. Do better.",
@@ -1098,7 +1098,7 @@ async def serverstats(interaction: discord.Integration):
             user_id, correct_counts, incorrect_counts = user
             user_id = await bot.fetch_user(user_id)
             total_counts = correct_counts + incorrect_counts
-            full_text += f"**{i+1}. {user_id}** - {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
+            full_text += f"**{i+1}. {user_id}** {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
         if len(full_text) > 0:
             embed = discord.Embed(title="Here you go, the server statistics", color=chadcounting_color)
             embed.add_field(name="", value=full_text)
