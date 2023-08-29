@@ -30,7 +30,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # DB
-bot_version = "Aug-1-2023-no2"
+bot_version = "Aug-29-2023-no1"
 chadcounting_color = 0xCA93FF
 
 # Initialize bot and intents
@@ -51,7 +51,7 @@ async def on_ready():
     for guild in bot.guilds:
         if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
-    print(f"ChadCounting is ready.")
+    print(f"[{datetime.now()}] ChadCounting is ready.")
 
 @bot.event
 async def on_resumed():
@@ -59,7 +59,7 @@ async def on_resumed():
     for guild in bot.guilds:
         if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
-    print(f"ChadCounting has resumed.")
+    print(f"[{datetime.now()}] ChadCounting has resumed.")
 
 @bot.event
 async def on_message(message):
@@ -135,7 +135,7 @@ async def check_for_missed_counts(guild_id):
                     incorrect_count = True
                     break # Stop checking messages after an incorrect count was logged
         else:
-            print(f"check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
+            print(f"[{datetime.now()}] check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
     if correct_count_amount > 0 or incorrect_count == True:
         embed = discord.Embed(title="ChadCounting is back on track!", color=chadcounting_color)
         current_count = guild_data[guild_id]["current_count"]
@@ -288,10 +288,10 @@ def init_guild_data():
                         for value in v["users"].values():
                             if value["time_banned"] != None:
                                 value["time_banned"] = datetime.fromisoformat(value["time_banned"])
-        print("guild_data.json successfully loaded.")
+        print(f"[{datetime.now()}] guild_data.json successfully loaded.")
     except FileNotFoundError:
         write_guild_data(guild_data)
-        print("guild_data.json didn't exist and was created.")
+        print(f"[{datetime.now()}] guild_data.json didn't exist and was created.")
     except json.decoder.JSONDecodeError:
         raise Exception("There was an error decoding guild_data.json.")
     finally:
@@ -302,7 +302,7 @@ def init_guild_data():
             for guild_id in guild_data:
                 if not dev_mode or (dev_mode and guild_id == dev_mode_guild_id):
                     add_or_update_new_guild_data(guild_id)
-        print(f"Successfully loaded {len(guild_data)} guild(s).")
+        print(f"[{datetime.now()}] Successfully loaded {len(guild_data)} guild(s).")
 
 def add_or_update_new_guild_data(guild_id):
     """Adds new guilds and/or users to guild_data and updates them if needed."""
@@ -334,7 +334,7 @@ def write_guild_data(guild_data, backup=False):
             with open(file, "w") as f:
                 json.dump(guild_data, f, cls=DateTimeEncoder)
         except Exception as e:
-            print(f"Guild_data was not (completely) serializable. Tried to write to {file} instead.\nError:{e}")
+            print(f"[{datetime.now()}] Guild_data was not (completely) serializable. Tried to write to {file} instead.\nError:{e}")
 
 def is_jsonable(x):
     """Checks if data X is json serializable."""
@@ -379,7 +379,7 @@ def update_values(update_dict, values, guild_id, user_id=None):
             full_text += f"for guild {guild_id}."
         else:
             full_text += f"for user {user_id} in guild {guild_id}."
-        print(full_text)
+        print(f"[{datetime.now()}] {full_text}")
         write_guild_data(copy_guild_data, True) # Force a backup because changes were made
         write_guild_data(guild_data)
 
@@ -403,7 +403,7 @@ def add_guild_to_guild_data(guild_id, update=False):
               "s_troll_amplifier": 7}
     if guild_id not in guild_data: 
         guild_data[guild_id] = values
-        print(f"New guild {guild_id} successfully added to dictionary.")
+        print(f"[{datetime.now()}] New guild {guild_id} successfully added to dictionary.")
         write_guild_data(guild_data)
     elif update:
         update_values(guild_data[guild_id], values, guild_id)
@@ -1116,5 +1116,5 @@ async def serverstats(interaction: discord.Integration):
         await command_exception(interaction, e)
 #endregion
 
-bot.run(DEV_TOKEN)
+bot.run(TOKEN)
 # Coded by https://github.com/Gitfoe
