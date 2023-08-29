@@ -123,18 +123,19 @@ async def check_for_missed_counts(guild_id):
     message_count = 0
     correct_count_amount = 0
     incorrect_count = False
-    permissions = counting_channel.permissions_for(counting_channel.guild.me)
-    if permissions.read_message_history:
-        async for message in counting_channel.history(limit=100, after=last_message):
-            message_count += 1 # Count a message
-            correct_count = await check_count_message(message)
-            if correct_count == True:
-                correct_count_amount += 1 # Count a correct count
-            elif correct_count == False:
-                incorrect_count = True
-                break # Stop checking messages after an incorrect count was logged
-    else:
-        print(f"check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
+    if counting_channel != None:
+        permissions = counting_channel.permissions_for(counting_channel.guild.me)
+        if permissions.read_message_history:
+            async for message in counting_channel.history(limit=100, after=last_message):
+                message_count += 1 # Count a message
+                correct_count = await check_count_message(message)
+                if correct_count == True:
+                    correct_count_amount += 1 # Count a correct count
+                elif correct_count == False:
+                    incorrect_count = True
+                    break # Stop checking messages after an incorrect count was logged
+        else:
+            print(f"check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
     if correct_count_amount > 0 or incorrect_count == True:
         embed = discord.Embed(title="ChadCounting is back on track!", color=chadcounting_color)
         current_count = guild_data[guild_id]["current_count"]
@@ -1101,7 +1102,9 @@ async def serverstats(interaction: discord.Integration):
             user_id, correct_counts, incorrect_counts = user
             user_id = await bot.fetch_user(user_id)
             total_counts = correct_counts + incorrect_counts
-            full_text += f"**{i+1}. {user_id}** {total_counts} total, {correct_counts} correct, {incorrect_counts} incorrect\n"
+            if total_counts > 0:
+                percent_correct = round((correct_counts / (total_counts)) * 100, 2)
+            full_text += f"**{i+1}. {user_id}** {total_counts} total ({percent_correct}% correct) {correct_counts} correct and {incorrect_counts} incorrect counts\n"
         if len(full_text) > 0:
             embed = discord.Embed(title="Here you go, the server statistics", color=chadcounting_color)
             embed.add_field(name="", value=full_text)
@@ -1113,5 +1116,5 @@ async def serverstats(interaction: discord.Integration):
         await command_exception(interaction, e)
 #endregion
 
-bot.run(TOKEN)
+bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
