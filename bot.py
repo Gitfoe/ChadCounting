@@ -137,7 +137,7 @@ async def check_for_missed_counts(guild_id):
                     incorrect_count = True
                     break # Stop checking messages after an incorrect count was logged
         else:
-            print(f"[{datetime.now()}] check_for_missed_counts: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
+            print(f"[{datetime.now()}] {check_for_missed_counts.__name__}: No message history permissions for guild {counting_channel.guild} (ID: {guild_id}) and channel {counting_channel} (ID: {guild_data[guild_id]['counting_channel']}).")
     if correct_count_amount > 0 or incorrect_count == True:
         embed = chadcounting_embed("ChadCounting is back on track!")
         current_count = guild_data[guild_id]["current_count"]
@@ -203,25 +203,22 @@ async def check_count_message(message):
                     # Acknowledge a correct count
                     correct_reactions = guild_data[guild_id]["s_correct_reaction"]
                     correct_reactions = remove_unavailable_emoji(correct_reactions, "🙂")
-                    for r in correct_reactions:
-                        await message.add_reaction(r)
-                    # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
-                    if str(current_count + 1).find("69") != -1:
-                        await message.add_reaction("💦")
+                    await add_reactions(message, correct_reactions, current_count)
                     return True
                 else:
-                    await handle_incorrect_count(guild_id, message, current_count, highest_count) # Wrong count
+                    await handle_incorrect_count(message, current_count, highest_count) # Wrong count
                     return False
             else:
                 pass_doublecount = guild_data[guild_id]["s_pass_doublecount"]
-                await handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount) # Repeated count
+                await handle_incorrect_count(message, current_count, highest_count, pass_doublecount) # Repeated count
                 return False
 
-async def handle_incorrect_count(guild_id, message, current_count, highest_count, pass_doublecount=None):
+async def handle_incorrect_count(message, current_count, highest_count, pass_doublecount=None):
     """Sends the correct error message to the user for counting incorrectly.
     No value for 'pass_doublecount' entered means that it is not a double count."""
     if pass_doublecount == None or pass_doublecount == False: # Only check incorrect counting if passing double counting allowed
         global guild_data
+        guild_id = message.guild.id
         guild_data[guild_id]["previous_counts"].append(current_count) # Save the count
         guild_data[guild_id]["current_count"] = 0 # Reset count to 0
         guild_data[guild_id]["previous_user"] = None # Reset previous user to no one so anyone can count again
@@ -259,10 +256,19 @@ async def handle_incorrect_count(guild_id, message, current_count, highest_count
         # Acknowledge an incorrect count
         incorrect_reactions = guild_data[guild_id]["s_incorrect_reaction"]
         incorrect_reactions = remove_unavailable_emoji(incorrect_reactions, "💀")
-        for r in incorrect_reactions:
-            await message.add_reaction(r)
+        await add_reactions(message, incorrect_reactions)
     else: # Pass/do nothing if passing of double counting is allowed
         pass
+
+async def add_reactions(message, reaction_emoji, current_count=None):
+    """Adds one or more emoji as reactions to a message."""
+    if message.channel.permissions_for(message.guild.me).add_reactions: # Only react if you have permission
+        for emoji in reaction_emoji:
+            await message.add_reaction(emoji)
+        if current_count is not None and str(current_count + 1).find("69") != -1: # React with a funny emoji if ( ͡° ͜ʖ ͡°) is in the number
+            await message.add_reaction("💦")
+    else:
+        print(f"[{datetime.now()}] {add_reactions.__name__}: No add reactions permissions for guild {message.guild.name} (ID: {message.guild.id}).")
 #endregion
 
 #region JSON DB helper functions
@@ -1170,5 +1176,5 @@ class StatsCog(commands.GroupCog, name="stats"):
             await command_exception(interaction, e)
 #endregion
 
-bot.run(TOKEN)
+bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
