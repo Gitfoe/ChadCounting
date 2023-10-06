@@ -1157,16 +1157,17 @@ class StatsCog(commands.GroupCog, name="stats"):
                 total_incorrect_counts = sum(user_data["incorrect_counts"] for user_data in users["users"].values())
                 total_counts = total_correct_counts + total_incorrect_counts
                 highest_count = guild_data[guild_id]["highest_count"]
+                current_count = guild_data[guild_id]["current_count"]
                 if total_counts > 0:
                     percent_correct = round((total_correct_counts / total_counts) * 100, 2)
-                    server_stats.append((guild_id, highest_count, total_counts, percent_correct))
+                    server_stats.append((guild_id, highest_count, total_counts, percent_correct, current_count))
             sorted_server_stats = sorted(server_stats, key=lambda x: x[1], reverse=True)[:10]
             full_text = ""
-            for i, (guild_id, highest_count, total_counts, percent_correct) in enumerate(sorted_server_stats):
+            for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats):
                 guild = discord.utils.get(bot.guilds, id=guild_id)
                 name_of_guild = guild.name if guild else "*Unknown server*"
-                full_text += f"**{i+1}. {name_of_guild}** {highest_count} highest count ({total_counts} total counts, {percent_correct}% correct)\n"
-            embed = chadcounting_embed("Here you go, the best servers on ChadCointing")
+                full_text += f"**{i+1}. {name_of_guild}** Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}\n"
+            embed = chadcounting_embed("Here you go, the best servers on ChadCounting")
             if len(full_text) > 0:
                 embed.add_field(name="", value=full_text)
             else:
