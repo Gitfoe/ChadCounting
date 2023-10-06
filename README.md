@@ -26,13 +26,14 @@ To configure the bot for the first time, add it to your Discord server and use t
 
 ## Commands
 The following commands could be used:
-- `/setchannel`: sets the counting channel the bot will be active in.
-- `/setreactions`: allows you to change the way the bot reacts when you count.
-- `/setbanning`: allows you to change banning settings, for instance, the ban duration.
-- `/currentcount`: shows you the current recorded count in case you're unsure.
-- `/highscore`: shows the server's high score and the average score.
-- `/userstats`: gives counting statistics of a user and tells you if you're a chad.
-- `/serverstats`: shows the ranks of all users in the server based on their counting performance.
+- `/set channel`: sets the counting channel the bot will be active in.
+- `/set reactions`: allows you to change the way the bot reacts when you count.
+- `/set banning`: allows you to change banning settings, for instance, the ban duration.
+- `/count current`: shows you the current recorded count in case you're unsure.
+- `/count highest`: shows the server's high score and the average score.
+- `/stats user`: gives counting statistics of a user and tells you if you're a chad.
+- `/stats server`: shows the ranks of all users in the server based on their counting performance.
+- `/stats global`: shows the best servers participating in ChadCounting.
 - `/banrate`: shows how hard you will be penalized for making a mistake at different counts.
 - `/help`: gives basic information about ChadCounting.
 
@@ -40,11 +41,11 @@ The following commands could be used:
 ### Dependencies
 To run the Python program, the following dependencies need to be installed via `pip3`:
 ```
-pip3 install -U discord.py (confirmed with version 2.3.1)
+pip3 install -U discord.py (confirmed with version 2.3.2)
 pip3 install -U python-dotenv (confirmed with version 1.0.0)
-pip3 install -U emoji (confirmed with version 2.7.0)
-pip3 install -U matplotlib (confirmed with version 3.7.2)
-pip3 install -U pytz (confirmed with version 2023.3)
+pip3 install -U emoji (confirmed with version 2.8.0)
+pip3 install -U matplotlib (confirmed with version 3.8.0)
+pip3 install -U pytz (confirmed with version 2023.3.post1)
 ```
 ### Discord Developer Portal bot settings
 When creating your own fork of ChadCounting, ensure your bot has at least the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. `Use External Emojis` is an optional permission, but recommended. The scope should be `bot`.
@@ -65,5 +66,8 @@ DISCORD_TOKEN=your_discord_bot_token
 DEV_TOKEN=your_discord_dev_bot_token
 ```
 
-### Pre-release versioning
-To properly manage versioning, it is recommended to update the `bot_version` variable in the `Initialization` section of the `bot.py` file every time a functional version is committed to the `dev` branch. This version will be displayed in the output of the `/help` command. The naming convention follows the pattern: `MMM-DD-YYYY-noX`, where X is a sequential number starting from 1 for each new day. Example: `Feb-27-2023-no2`.
+### Versioning
+To properly manage versioning, it is recommended to update the `bot_version` variable in the `Initialization` section of the `bot.py` file every time a functional version is ready to be pulled to the `main` branch. This version will be displayed in the output of the `/help` command. ChadCounting uses semantic versioning and a version number is written as `MAJOR.MINOR.PATCH`, where:
+- `MAJOR` version is increased for incompatible changes to previous versions.
+- `MINOR` version is increased for new features that are backward-compatible.
+- `PATCH` version is increased for backward-compatible bug fixes.
