@@ -1176,5 +1176,5 @@ class StatsCog(commands.GroupCog, name="stats"):
             await command_exception(interaction, e)
 #endregion
 
-bot.run(DEV_TOKEN)
+bot.run(TOKEN)
 # Coded by https://github.com/Gitfoe
