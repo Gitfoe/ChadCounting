@@ -64,6 +64,7 @@ For added security and to comply by Discord's ToS, create a .env file in the roo
 # .env
 DISCORD_TOKEN=your_discord_bot_token
 DEV_TOKEN=your_discord_dev_bot_token
+DISCORDBOTLIST_TOKEN=your_discordbotlist_token
 ```
 
 ### Versioning
@@ -71,3 +72,4 @@ To properly manage versioning, it is recommended to update the `bot_version` var
 - `MAJOR` version is increased for incompatible changes to previous versions.
 - `MINOR` version is increased for new features that are backward-compatible.
 - `PATCH` version is increased for backward-compatible bug fixes.
+When you are working on a new version and commit to the `dev` branch, ensure the version temporarily ends with `-indev` to indicate that the version is in development and might not function yet. 

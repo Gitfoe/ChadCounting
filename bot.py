@@ -8,6 +8,7 @@ import copy
 import pytz
 import emoji
 import discord
+import requests
 import traceback
 import statistics
 import matplotlib.pyplot as plt
@@ -29,10 +30,12 @@ update_guild_data = False # Forces updating of newly added guild_data values aft
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
-guild_data = {} # DB
-bot_version = "1.0.0"
-chadcounting_color = 0xCA93FF
+DISCORDBOTLIST_TOKEN = os.getenv("DISCORDBOTLIST_TOKEN") # For using the https://discordbotlist.com API
+guild_data = {} # Empty database
+bot_version = "1.0.1-indev"
+chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
+api_discordbotslist = "https://discordbotlist.com/api/v1/bots/chadcounting"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -44,11 +47,14 @@ bot = commands.Bot(command_prefix='/', help_command=None, intents=intents)
 @bot.event
 async def on_ready():
     """Discord event that gets triggered once the connection has been established."""
+    # Setup and sync commands
     await setup_grouped_commands(bot)
-    try: # Sync bot commands
-        synced = await bot.tree.sync()
+    try:
+        await bot.tree.sync() # Sync commands to Discord
+        push_commands_to_discordbotlist() # Sync commands to Discordbotlist
     except Exception as e:
         print(e)
+    # Initialise database
     init_guild_data()
     for guild in bot.guilds:
         if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
@@ -649,6 +655,13 @@ async def check_bot_ready(interaction):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
     return True
+
+def get_all_commands(bot):
+    """Returns a list of all the commands the bot has."""
+    return [
+        *bot.walk_commands(),
+        *bot.tree.walk_commands()
+    ]
 #endregion
 
 #region View subclasses
@@ -716,7 +729,7 @@ async def help(interaction: discord.Integration):
     except Exception as e:
         await command_exception(interaction, e)
 
-class SetCog(commands.GroupCog, name="set"):
+class SetCog(commands.GroupCog, name="set", description="Admins only: sets and configures various settings for ChadCounting."):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         super().__init__()
@@ -934,7 +947,7 @@ class SetCog(commands.GroupCog, name="set"):
         except Exception as e:
             await command_exception(interaction, e)
 
-class CountCog(commands.GroupCog, name="count"):
+class CountCog(commands.GroupCog, name="count", description="Gives various counting statusses."):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         super().__init__()
@@ -1058,7 +1071,7 @@ async def banrate(interaction: discord.Integration):
     except Exception as e:
         await command_exception(interaction, e)
 
-class StatsCog(commands.GroupCog, name="stats"):
+class StatsCog(commands.GroupCog, name="stats", description="Gives various counting statistics."):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         super().__init__()
@@ -1177,5 +1190,18 @@ class StatsCog(commands.GroupCog, name="stats"):
             await command_exception(interaction, e)
 #endregion
 
-bot.run(TOKEN)
+#region API's
+def push_commands_to_discordbotlist():
+    """Connects to the discordbotlist API and sends the bot's commands."""
+    url = f"{api_discordbotslist}/commands"
+    headers = {
+        "Authorization": f"Bot {DISCORDBOTLIST_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    commands_list = []
+    for command in get_all_commands(bot):
+        commands_list.append({"name": command.qualified_name, "description": command.description})
+    requests.post(url, headers=headers, json=commands_list)
+#endregion
+bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
