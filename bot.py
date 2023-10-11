@@ -22,20 +22,23 @@ from discord.ui import View, Button
 
 #region Initialisation
 # For developing only
-dev_mode = False # Make the bot only active in a certain guild
-dev_mode_guild_id = 574350984495628436 # Bot must be in this guild already
+dev_disable_apis = False # Disable connecting to APIs such as bot websites
+dev_active_single_guild = False # Make the bot only active in a certain guild
+dev_mode_guild_id = 574350984495628436 # If the above is true, bot must be in this guild already
 update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
 # Initialize variables and load environment tables
 load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 DISCORDBOTLIST_TOKEN = os.getenv("DISCORDBOTLIST_TOKEN") # For using the https://discordbotlist.com API
-guild_data = {} # Empty database
+TOPGG_TOKEN = os.getenv("TOPGG_TOKEN") # For using the https://top.gg API
+guild_data = {} # Global variable for database
 bot_version = "1.0.1-indev"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 api_discordbotslist = "https://discordbotlist.com/api/v1/bots/chadcounting"
+api_topgg = "https://top.gg/api/bots/1066081427935993886"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -52,13 +55,13 @@ async def on_ready():
     try:
         await bot.tree.sync() # Sync commands to Discord
         push_commands_to_discordbotlist() # Sync commands to Discordbotlist
-        push_guilds_count_to_discordbotlist() # Sync guilds count to Discordbotlist
+        push_guilds_count_to_all_bot_websites() # Sync guilds count to bot lists
     except Exception as e:
         print(e)
     # Initialise database
     init_guild_data()
     for guild in bot.guilds:
-        if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
+        if not dev_active_single_guild or (dev_active_single_guild and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
     print(f"[{datetime.now()}] ChadCounting is ready.")
 
@@ -66,7 +69,7 @@ async def on_ready():
 async def on_resumed():
     """Discord event that gets triggered once a bot gets resumed from a paused session."""
     for guild in bot.guilds:
-        if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
+        if not dev_active_single_guild or (dev_active_single_guild and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
     print(f"[{datetime.now()}] ChadCounting has resumed.")
 
@@ -86,7 +89,7 @@ async def on_message_delete(message):
     guild_id = message.guild.id
     current_count = guild_data[guild_id]["current_count"]
     # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
-    if message.author.bot or dev_mode and not guild_id == dev_mode_guild_id:
+    if message.author.bot or dev_active_single_guild and not guild_id == dev_mode_guild_id:
         return
     last_count = guild_data[guild_id]["previous_message"]
     if message.created_at == last_count:
@@ -120,7 +123,7 @@ async def on_guild_join(guild):
     if bot.is_ready() is not True:
         return
     add_guild_to_guild_data(guild.id)
-    push_guilds_count_to_discordbotlist() # Sync guilds count to Discordbotlist
+    push_guilds_count_to_all_bot_websites() # Sync guilds count with bot lists
 #endregion                                               
 
 #region Counting logic
@@ -176,7 +179,7 @@ async def check_count_message(message):
     """Returns True if the message was a correct count and False if it was incorrect. Returns nothing if count wasn't checked."""
     global guild_data
     # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
-    if message.author.bot or dev_mode and not message.guild.id == dev_mode_guild_id:
+    if message.author.bot or dev_active_single_guild and not message.guild.id == dev_mode_guild_id:
         return
     # Checks if the message is sent in counting channel and starts with a number
     elif message.channel.id == guild_data[message.guild.id]["counting_channel"] and len(message.content) > 0 and message.content[0].isnumeric():
@@ -312,11 +315,11 @@ def init_guild_data():
         raise Exception("There was an error decoding guild_data.json.")
     finally:
         for guild in bot.guilds:
-            if not dev_mode or (dev_mode and guild.id == dev_mode_guild_id):
+            if not dev_active_single_guild or (dev_active_single_guild and guild.id == dev_mode_guild_id):
                 add_or_update_new_guild_data(guild.id)
         if update_guild_data: # If updating is on, also check the existing guilds in guild_data (if the bot left a guild)
             for guild_id in guild_data:
-                if not dev_mode or (dev_mode and guild_id == dev_mode_guild_id):
+                if not dev_active_single_guild or (dev_active_single_guild and guild_id == dev_mode_guild_id):
                     add_or_update_new_guild_data(guild_id)
         print(f"[{datetime.now()}] Successfully loaded {len(guild_data)} guild(s).")
 
@@ -588,6 +591,12 @@ def chadcounting_embed(title, description=None):
     embed = discord.Embed(title=title, description=description, color=chadcounting_color)
     embed.set_thumbnail(url=image_gigachad)
     return embed
+
+def check_dev_disable_apis(executing_method_name):
+    """Prints to the console if 'dev_disable_apis' is enabled."""
+    if dev_disable_apis:
+        print(f"[{datetime.now()}] {executing_method_name}: dev_disable_apis is enabled, method will exit.")
+    return dev_disable_apis
 #endregion
 
 #region Command helper functions
@@ -633,7 +642,7 @@ async def check_correct_channel(interaction):
     channel_error = f"You can only execute ChadCounting commands in the counting channel, "
     if counting_channel == None:
         channel_error += (f"however, it has not been set yet. " +
-                          f"If you are an admin of this server, use the command `/setchannel` in the channel you want to count in.")
+                          f"If you are an admin of this server, use the command `/set channel` in the channel you want to count in.")
         embed.add_field(name="", value=channel_error)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return False
@@ -1150,7 +1159,7 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
                 total_counts = correct_counts + incorrect_counts
                 if total_counts > 0:
                     percent_correct = round((correct_counts / (total_counts)) * 100, 2)
-                full_text += f"**{i+1}. {user_id}** {total_counts} total counts ({percent_correct}% correct) {correct_counts} correct and {incorrect_counts} incorrect counts\n"
+                full_text += f"**{i+1}. {user_id}**{total_counts} total counts ({percent_correct}% correct) {correct_counts} correct and {incorrect_counts} incorrect counts\n"
             if len(full_text) > 0:
                 embed = chadcounting_embed("Here you go, the server statistics")
                 embed.add_field(name="", value=full_text)
@@ -1166,57 +1175,70 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
         try:
             if not await check_bot_ready(interaction) or not await check_correct_channel(interaction):
                 return
-            server_stats = []
-            for guild_id, users in guild_data.items():
-                total_correct_counts = sum(user_data["correct_counts"] for user_data in users["users"].values())
-                total_incorrect_counts = sum(user_data["incorrect_counts"] for user_data in users["users"].values())
-                total_counts = total_correct_counts + total_incorrect_counts
-                highest_count = guild_data[guild_id]["highest_count"]
-                current_count = guild_data[guild_id]["current_count"]
-                if total_counts > 0:
-                    percent_correct = round((total_correct_counts / total_counts) * 100, 2)
-                    server_stats.append((guild_id, highest_count, total_counts, percent_correct, current_count))
-            sorted_server_stats = sorted(server_stats, key=lambda x: x[1], reverse=True)[:10]
-            full_text = ""
-            for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats):
-                guild = discord.utils.get(bot.guilds, id=guild_id)
-                name_of_guild = guild.name if guild else "*Unknown server*"
-                full_text += f"**{i+1}. {name_of_guild}** Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}\n"
+            guild_ids_bot_is_in = {guild.id for guild in bot.guilds}
+            server_stats = [
+                (
+                    guild_id,
+                    guild_data[guild_id]["highest_count"],
+                    total_counts := sum(user_data["correct_counts"] + user_data["incorrect_counts"] for user_data in users["users"].values()),
+                    round((sum(user_data["correct_counts"] for user_data in users["users"].values()) / total_counts) * 100, 2) if total_counts > 0 else 0,
+                    guild_data[guild_id]["current_count"]
+                )
+                for guild_id, users in guild_data.items() if guild_id in guild_ids_bot_is_in
+            ]
+            sorted_server_stats = sorted(server_stats, key=lambda x: (x[3], x[2], x[1]), reverse=True)[:10]
+            full_text = "\n".join(
+                f"**{i+1}. {discord.utils.get(bot.guilds, id=guild_id).name}**Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
+                for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats)
+            )
             embed = chadcounting_embed("Here you go, the best servers on ChadCounting")
-            if len(full_text) > 0:
-                embed.add_field(name="", value=full_text)
-            else:
-                embed.add_field(name="", value="No servers have participated in ChadCounting yet. Shame. Start counting!")
+            embed.add_field(name="", value=full_text if full_text else "No servers have participated in ChadCounting yet. Shame. Start counting!")
             await interaction.response.send_message(embed=embed)
         except Exception as e:
             await command_exception(interaction, e)
 #endregion
 
-#region API's
-def headers_discordbotlist(url):
-    """Base headers for discordbotlist API."""
+#region APIs
+def discordbotlist_api_authorization_header():
+    """Base headers for the Discordbotlist API"""
     return {
         "Authorization": f"Bot {DISCORDBOTLIST_TOKEN}",
         "Content-Type": "application/json"
     }
 
+def topgg_api_authorization_header():
+    """Base headers for the Top.GG API."""
+    return {
+        "Authorization": TOPGG_TOKEN,
+        "Content-Type": "application/json"
+    }
+
 def push_commands_to_discordbotlist():
     """Sends the bot's commands via the API."""
+    if check_dev_disable_apis(push_commands_to_discordbotlist.__name__): return
     url = f"{api_discordbotslist}/commands"
-    headers = headers_discordbotlist(url)
+    headers = discordbotlist_api_authorization_header()
     # Convert list of commands to json-serializable and API-understandable format
     commands_list = []
     for command in get_all_commands(bot):
         commands_list.append({"name": command.qualified_name, "description": command.description})
-    requests.post(url, headers=headers, json=commands_list)
+    response = requests.post(url, headers=headers, json=commands_list)
+    print(f"[{datetime.now()}] {push_commands_to_discordbotlist.__name__}: API response {response.status_code}.")
 
-def push_guilds_count_to_discordbotlist():
+def push_guilds_count_to_all_bot_websites():
+    """Pushes the current guild count to all bot websites configured."""
+    if check_dev_disable_apis(push_guilds_count_to_all_bot_websites.__name__): return
+    discordbotlist_headers = discordbotlist_api_authorization_header()
+    topgg_headers = topgg_api_authorization_header()
+    push_guilds_count_to_bot_website(f"{api_discordbotslist}/stats", "guilds", discordbotlist_headers)
+    push_guilds_count_to_bot_website(f"{api_topgg}/stats", "server_count", topgg_headers)
+
+def push_guilds_count_to_bot_website(url, payload_string, headers):
     """Sends the number of guilds via the API."""
-    url = f"{api_discordbotslist}/stats"
-    headers = headers_discordbotlist(url)
-    payload = {"guilds": len(bot.guilds)}
-    requests.post(url, headers=headers, json=payload)
-
+    payload = {payload_string: len(bot.guilds)}
+    response = requests.post(url, headers=headers, json=payload)
+    print(f"[{datetime.now()}] {push_guilds_count_to_bot_website.__name__}: {url} API response {response.status_code}.")
 #endregion
+
 bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
