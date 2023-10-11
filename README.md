@@ -22,7 +22,7 @@ One of the distinctive features of ChadCounting is the catch-up feature. In case
 - Counts any message that starts with a number.
 
 ## Usage
-To configure the bot for the first time, add it to your Discord server and use the `/setchannel` command to let the bot know where it should keep track of counting. After that, ChadCounting is up and running and you can start competing!
+To configure the bot for the first time, add it to your Discord server and use the `/set channel` command to let the bot know where it should keep track of counting. After that, ChadCounting is up and running and you can start competing!
 
 ## Commands
 The following commands could be used:
@@ -51,7 +51,11 @@ pip3 install -U pytz (confirmed with version 2023.3.post1)
 When creating your own fork of ChadCounting, ensure your bot has at least the `Send Message`, `Read Message History` and `Add Reactions` OAuth2 permissions. `Use External Emojis` is an optional permission, but recommended. The scope should be `bot`.
 
 ### Dev-mode
-In the `Initialisation` region of the `bot.py` file, `dev_mode` can be enabled to facilitate the testing of real-world scenarios. By enabling `dev-mode`, the bot can be configured to operate solely within a designated (testing) guild, thus preventing beta code from impacting production guilds. It is recommended to have two separate Discord bots, one for production and one for development, to safely test new code without putting the production environment at risk.
+In the `Initialisation` region of the `bot.py` file, two development options can be enabled to facilitate the testing of real-world scenarios.
+
+The first option, `dev_active_single_guild`, can be enabled to configure the bot to operate solely within a designated (testing) guild, thus preventing beta code from impacting production guilds. The `dev_mode_guild_id` should be set to the ID of this testing guild. This allows you to safely test new code without putting the production environment at risk.
+
+The second option, `dev_disable_apis`, can be enabled to disable connections to APIs such as the bot websites top.gg and discordbotlist during development. It is recommended to have two separate Discord bots, one for production and one for development, to safely test new code. This option should be enabled when using a development bot account to prevent pushing the development bot's data to the APIs.
 
 [Link to add ChadCounting Dev to a guild](https://discord.com/api/oauth2/authorize?client_id=1069230219094921318&permissions=329792&scope=bot)
 
@@ -62,8 +66,12 @@ Counting and guild data is saved to a JSON database, eliminating the need for ex
 For added security and to comply by Discord's ToS, create a .env file in the root directory of the ChadCounting bot folder (where bot.py is located). This file serves as the designated location to securely store bot tokens. To add your Discord bot tokens, follow the example below:
 ```
 # .env
-DISCORD_TOKEN=your_discord_bot_token
-DEV_TOKEN=your_discord_dev_bot_token
+DISCORD_TOKEN=token_here
+DEV_TOKEN=token_here
+DISCORDBOTLIST_TOKEN=token_here
+TOPGG_TOKEN=token_here
+DISCORDS_TOKEN=token_here
+DISCORDBOTSGG_TOKEN=token_here
 ```
 
 ### Versioning
@@ -71,3 +79,4 @@ To properly manage versioning, it is recommended to update the `bot_version` var
 - `MAJOR` version is increased for incompatible changes to previous versions.
 - `MINOR` version is increased for new features that are backward-compatible.
 - `PATCH` version is increased for backward-compatible bug fixes.
+When you are working on a new version and commit to the `dev` branch, ensure the version temporarily ends with `-indev` to indicate that the version is in development and might not function yet.
