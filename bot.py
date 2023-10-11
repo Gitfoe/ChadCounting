@@ -1193,7 +1193,8 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
                 )
                 for guild_id, users in guild_data.items() if guild_id in guild_ids_bot_is_in
             ]
-            sorted_server_stats = sorted(server_stats, key=lambda x: (x[3], x[2], x[1]), reverse=True)[:10]
+            # Sort by high score, then percent correct, then total counts
+            sorted_server_stats = sorted(server_stats, key=lambda x: (x[1], x[3], x[2]), reverse=True)[:10]
             full_text = "\n".join(
                 f"**{i+1}. {discord.utils.get(bot.guilds, id=guild_id).name}**Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
                 for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats)
