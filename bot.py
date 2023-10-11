@@ -52,6 +52,7 @@ async def on_ready():
     try:
         await bot.tree.sync() # Sync commands to Discord
         push_commands_to_discordbotlist() # Sync commands to Discordbotlist
+        push_guilds_count_to_discordbotlist() # Sync guilds count to Discordbotlist
     except Exception as e:
         print(e)
     # Initialise database
@@ -119,6 +120,7 @@ async def on_guild_join(guild):
     if bot.is_ready() is not True:
         return
     add_guild_to_guild_data(guild.id)
+    push_guilds_count_to_discordbotlist() # Sync guilds count to Discordbotlist
 #endregion                                               
 
 #region Counting logic
@@ -1191,17 +1193,30 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
 #endregion
 
 #region API's
-def push_commands_to_discordbotlist():
-    """Connects to the discordbotlist API and sends the bot's commands."""
-    url = f"{api_discordbotslist}/commands"
-    headers = {
+def headers_discordbotlist(url):
+    """Base headers for discordbotlist API."""
+    return {
         "Authorization": f"Bot {DISCORDBOTLIST_TOKEN}",
         "Content-Type": "application/json"
     }
+
+def push_commands_to_discordbotlist():
+    """Sends the bot's commands via the API."""
+    url = f"{api_discordbotslist}/commands"
+    headers = headers_discordbotlist(url)
+    # Convert list of commands to json-serializable and API-understandable format
     commands_list = []
     for command in get_all_commands(bot):
         commands_list.append({"name": command.qualified_name, "description": command.description})
     requests.post(url, headers=headers, json=commands_list)
+
+def push_guilds_count_to_discordbotlist():
+    """Sends the number of guilds via the API."""
+    url = f"{api_discordbotslist}/stats"
+    headers = headers_discordbotlist(url)
+    payload = {"guilds": len(bot.guilds)}
+    requests.post(url, headers=headers, json=payload)
+
 #endregion
 bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
