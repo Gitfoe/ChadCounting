@@ -29,16 +29,22 @@ update_guild_data = False # Forces updating of newly added guild_data values aft
 
 # Initialize variables and load environment tables
 load_dotenv()
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") # Normal ChadCounting token
+PROD_TOKEN = os.getenv("PROD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
-DISCORDBOTLIST_TOKEN = os.getenv("DISCORDBOTLIST_TOKEN") # For using the https://discordbotlist.com API
-TOPGG_TOKEN = os.getenv("TOPGG_TOKEN") # For using the https://top.gg API
 guild_data = {} # Global variable for database
-bot_version = "1.0.1-indev"
+bot_version = "1.0.1"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
+
+# Initialize API tokens and URIs
+DISCORDBOTLIST_TOKEN = os.getenv("DISCORDBOTLIST_TOKEN")
+TOPGG_TOKEN = os.getenv("TOPGG_TOKEN")
+DISCORDS_TOKEN = os.getenv("DISCORDS_TOKEN")
+DISCORDBOTSGG_TOKEN = os.getenv("DISCORDBOTSGG_TOKEN")
 api_discordbotslist = "https://discordbotlist.com/api/v1/bots/chadcounting"
 api_topgg = "https://top.gg/api/bots/1066081427935993886"
+api_discords = "https://discords.com/bots/api/bot/1066081427935993886"
+api_discordbotsgg = "https://discord.bots.gg/api/v1/bots/1066081427935993886"
 
 # Initialize bot and intents
 intents = discord.Intents.default()
@@ -713,6 +719,7 @@ class ViewHelpButtons(View):
             {"label": "More information", "url": "https://github.com/Gitfoe/ChadCounting", "emoji": "ℹ️"},
             {"label": "Vote on top.gg", "url": "https://top.gg/bot/1066081427935993886/vote", "emoji": "⬆️"},
             {"label": "Vote on discordbotlist", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
+            {"label": "Vote on discords", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
         ]
         for button in buttons:
             self.add_item(Button(**button))
@@ -1206,10 +1213,10 @@ def discordbotlist_api_authorization_header():
         "Content-Type": "application/json"
     }
 
-def topgg_api_authorization_header():
+def generic_api_authorization_header(token):
     """Base headers for the Top.GG API."""
     return {
-        "Authorization": TOPGG_TOKEN,
+        "Authorization": token,
         "Content-Type": "application/json"
     }
 
@@ -1229,9 +1236,13 @@ def push_guilds_count_to_all_bot_websites():
     """Pushes the current guild count to all bot websites configured."""
     if check_dev_disable_apis(push_guilds_count_to_all_bot_websites.__name__): return
     discordbotlist_headers = discordbotlist_api_authorization_header()
-    topgg_headers = topgg_api_authorization_header()
+    topgg_headers = generic_api_authorization_header(TOPGG_TOKEN)
+    discords_headers = generic_api_authorization_header(DISCORDS_TOKEN)
+    discordbotsgg_headers = generic_api_authorization_header(DISCORDBOTSGG_TOKEN)
     push_guilds_count_to_bot_website(f"{api_discordbotslist}/stats", "guilds", discordbotlist_headers)
     push_guilds_count_to_bot_website(f"{api_topgg}/stats", "server_count", topgg_headers)
+    push_guilds_count_to_bot_website(api_discords, "server_count", discords_headers)
+    push_guilds_count_to_bot_website(f"{api_discordbotsgg}/stats", "guildCount", discordbotsgg_headers)
 
 def push_guilds_count_to_bot_website(url, payload_string, headers):
     """Sends the number of guilds via the API."""
@@ -1240,5 +1251,5 @@ def push_guilds_count_to_bot_website(url, payload_string, headers):
     print(f"[{datetime.now()}] {push_guilds_count_to_bot_website.__name__}: {url} API response {response.status_code}.")
 #endregion
 
-bot.run(DEV_TOKEN)
+bot.run(PROD_TOKEN)
 # Coded by https://github.com/Gitfoe

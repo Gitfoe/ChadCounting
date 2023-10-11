@@ -66,10 +66,12 @@ Counting and guild data is saved to a JSON database, eliminating the need for ex
 For added security and to comply by Discord's ToS, create a .env file in the root directory of the ChadCounting bot folder (where bot.py is located). This file serves as the designated location to securely store bot tokens. To add your Discord bot tokens, follow the example below:
 ```
 # .env
-DISCORD_TOKEN=your_discord_bot_token
-DEV_TOKEN=your_discord_dev_bot_token
-DISCORDBOTLIST_TOKEN=your_discordbotlist_token
-TOPGG_TOKEN=your_topgg_token
+DISCORD_TOKEN=token_here
+DEV_TOKEN=token_here
+DISCORDBOTLIST_TOKEN=token_here
+TOPGG_TOKEN=token_here
+DISCORDS_TOKEN=token_here
+DISCORDBOTSGG_TOKEN=token_here
 ```
 
 ### Versioning
