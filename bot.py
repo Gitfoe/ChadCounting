@@ -32,7 +32,7 @@ load_dotenv()
 PROD_TOKEN = os.getenv("PROD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # Global variable for database
-bot_version = "1.0.1"
+bot_version = "1.0.2-indev"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 
@@ -719,7 +719,7 @@ class ViewHelpButtons(View):
             {"label": "More information", "url": "https://github.com/Gitfoe/ChadCounting", "emoji": "ℹ️"},
             {"label": "Vote on top.gg", "url": "https://top.gg/bot/1066081427935993886/vote", "emoji": "⬆️"},
             {"label": "Vote on discordbotlist", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
-            {"label": "Vote on discords", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
+            {"label": "Vote on discords", "url": "https://discords.com/bots/bot/1066081427935993886/vote", "emoji": "⬆️"},
         ]
         for button in buttons:
             self.add_item(Button(**button))
@@ -1252,5 +1252,5 @@ def push_guilds_count_to_bot_website(url, payload_string, headers):
     print(f"[{datetime.now()}] {push_guilds_count_to_bot_website.__name__}: {url} API response {response.status_code}.")
 #endregion
 
-bot.run(PROD_TOKEN)
+bot.run(DEV_TOKEN)
 # Coded by https://github.com/Gitfoe
