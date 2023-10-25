@@ -79,4 +79,5 @@ To properly manage versioning, it is recommended to update the `bot_version` var
 - `MAJOR` version is increased for incompatible changes to previous versions.
 - `MINOR` version is increased for new features that are backward-compatible.
 - `PATCH` version is increased for backward-compatible bug fixes.
+
 When you are working on a new version and commit to the `dev` branch, ensure the version temporarily ends with `-indev` to indicate that the version is in development and might not function yet.
