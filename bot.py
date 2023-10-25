@@ -32,7 +32,7 @@ load_dotenv()
 PROD_TOKEN = os.getenv("PROD_TOKEN") # Normal ChadCounting token
 DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
 guild_data = {} # Global variable for database
-bot_version = "1.0.1"
+bot_version = "1.0.2"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 
@@ -49,13 +49,13 @@ api_discordbotsgg = "https://discord.bots.gg/api/v1/bots/1066081427935993886"
 # Initialize bot and intents
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='/', help_command=None, intents=intents)
+bot = commands.Bot(command_prefix='/', intents=intents)
 #endregion
 
 #region Bot events
 @bot.event
 async def on_ready():
-    """Discord event that gets triggered once the connection has been established."""
+    """Discord event that gets triggered once the connection has been established for the first time."""
     # Setup and sync commands
     await setup_grouped_commands(bot)
     try:
@@ -66,6 +66,7 @@ async def on_ready():
         print(e)
     # Initialise database
     init_guild_data()
+    # Check for missed counts on first start-up
     for guild in bot.guilds:
         if not dev_active_single_guild or (dev_active_single_guild and guild.id == dev_mode_guild_id):
             await check_for_missed_counts(guild.id)
@@ -91,21 +92,23 @@ async def on_message_delete(message):
     """Checks if a deleted message is the current count and notify the users of that."""
     if bot.is_ready() is not True:
         return
-    global guild_data
-    guild_id = message.guild.id
-    current_count = guild_data[guild_id]["current_count"]
     # Ignores messages sent by bots, and if dev_mode is on, exit if message is not from dev mode guild
     if message.author.bot or dev_active_single_guild and not guild_id == dev_mode_guild_id:
         return
+    global guild_data
+    guild_id = message.guild.id
+    user_id = message.author.id
+    current_count = guild_data[guild_id]["current_count"]
     last_count = guild_data[guild_id]["previous_message"]
-    if message.created_at == last_count:
+    current_user_minutes_ban = check_user_banned(user_id, guild_id)
+    if message.created_at == last_count and current_user_minutes_ban <= 0: # Only ban the user if they are not already banned
         # Ban logic
         banning_enabled = guild_data[guild_id]["s_banning"]
         if banning_enabled:
             maximum_ban = guild_data[guild_id]["s_maximum_ban"]
             troll_amplifier = guild_data[guild_id]["s_troll_amplifier"]
             ban_time_for_troll = maximum_ban * troll_amplifier # Ban the deleter of the message for the troll amount
-            success_user_banned = ban_user(message.author.id, guild_id, ban_time_for_troll)
+            success_user_banned = ban_user(user_id, guild_id, ban_time_for_troll)
             write_guild_data(guild_data)
         else:
             success_user_banned = None
@@ -200,11 +203,13 @@ async def check_count_message(message):
         banning = guild_data[guild_id]["s_banning"]
         current_user_minutes_ban = check_user_banned(current_user, guild_id)
         if banning and current_user_minutes_ban >= 1:
+            guild_data[guild_id]["previous_message"] = message.created_at # Set to prevent catch up code from counting an ignored/banned count
             current_user_ban_string = minutes_to_fancy_string(current_user_minutes_ban)
             embed = chadcounting_embed("You can't count now!")
             embed.add_field(name="", value=f"{message.author.mention}, you are still banned from counting for {current_user_ban_string}, you beta. ", inline=False)
             embed.add_field(name="", value=f"The current count stays on **{current_count}**. Other users can continue counting.", inline=False)
             await message.reply(embed=embed)
+            write_guild_data(guild_data) # Write count data
         # End of ban logic
         else:
             if current_user != previous_user:
@@ -719,7 +724,7 @@ class ViewHelpButtons(View):
             {"label": "More information", "url": "https://github.com/Gitfoe/ChadCounting", "emoji": "ℹ️"},
             {"label": "Vote on top.gg", "url": "https://top.gg/bot/1066081427935993886/vote", "emoji": "⬆️"},
             {"label": "Vote on discordbotlist", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
-            {"label": "Vote on discords", "url": "https://discordbotlist.com/bots/chadcounting/upvote", "emoji": "⬆️"},
+            {"label": "Vote on discords", "url": "https://discords.com/bots/bot/1066081427935993886/vote", "emoji": "⬆️"},
         ]
         for button in buttons:
             self.add_item(Button(**button))
