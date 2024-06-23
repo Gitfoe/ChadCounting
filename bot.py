@@ -97,6 +97,9 @@ async def on_message_delete(message):
     global guild_data
     guild_id = message.guild.id
     user_id = message.author.id
+    # If a deleted message is not by someone who counted before, there's no need to continue
+    if user_id not in guild_data[guild_id]:
+        return
     current_count = guild_data[guild_id]["current_count"]
     last_count = guild_data[guild_id]["previous_message"]
     current_user_minutes_ban = check_user_banned(user_id, guild_id)
