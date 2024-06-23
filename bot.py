@@ -29,9 +29,9 @@ update_guild_data = False # Forces updating of newly added guild_data values aft
 
 # Initialize variables and load environment tables
 load_dotenv()
-BOT_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting token (either PROD_TOKEN or DEV_TOKEN)
+BOT_TOKEN = os.getenv("PROD_TOKEN") # ChadCounting token (either PROD_TOKEN or DEV_TOKEN)
 guild_data = {} # Global variable for database
-bot_version = "1.0.3-indev"
+bot_version = "1.0.3"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 
@@ -97,6 +97,9 @@ async def on_message_delete(message):
     global guild_data
     guild_id = message.guild.id
     user_id = message.author.id
+    # If a deleted message is not by someone who counted before, there's no need to continue
+    if user_id not in guild_data[guild_id]:
+        return
     current_count = guild_data[guild_id]["current_count"]
     last_count = guild_data[guild_id]["previous_message"]
     current_user_minutes_ban = check_user_banned(user_id, guild_id)
