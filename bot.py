@@ -22,17 +22,16 @@ from discord.ui import View, Button
 
 #region Initialisation
 # For developing only
-dev_disable_apis = False # Disable connecting to APIs such as bot websites
+dev_disable_apis = True # Disable connecting to APIs such as bot websites
 dev_active_single_guild = False # Make the bot only active in a certain guild
 dev_mode_guild_id = 574350984495628436 # If the above is true, bot must be in this guild already
 update_guild_data = False # Forces updating of newly added guild_data values after a ChadCounting update
 
 # Initialize variables and load environment tables
 load_dotenv()
-PROD_TOKEN = os.getenv("PROD_TOKEN") # Normal ChadCounting token
-DEV_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting Dev bot account token
+BOT_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting token (either PROD_TOKEN or DEV_TOKEN)
 guild_data = {} # Global variable for database
-bot_version = "1.0.2"
+bot_version = "1.0.3-indev"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 
@@ -575,6 +574,13 @@ def extract_number_from_string(string):
         return int(num_str)
     else:
         return None
+    
+def escape_markdown(text):
+    """Escapes special Discord Markdown characters in the given text."""
+    escape_chars = ['*', '_', '~', '`']
+    for char in escape_chars:
+        text = text.replace(char, '\\' + char)
+    return text
 
 def adjust_font_size(title, max_font_size):
     """Adjusts a font size to be smaller on longer texts."""
@@ -1201,7 +1207,7 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
             # Sort by high score, then percent correct, then total counts
             sorted_server_stats = sorted(server_stats, key=lambda x: (x[1], x[3], x[2]), reverse=True)[:10]
             full_text = "\n".join(
-                f"**{i+1}. {discord.utils.get(bot.guilds, id=guild_id).name}**Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
+                f"**{i+1}. {escape_markdown(discord.utils.get(bot.guilds, id=guild_id).name)}**\nHighest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
                 for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats)
             )
             embed = chadcounting_embed("Here you go, the best servers on ChadCounting")
@@ -1257,5 +1263,5 @@ def push_guilds_count_to_bot_website(url, payload_string, headers):
     print(f"[{datetime.now()}] {push_guilds_count_to_bot_website.__name__}: {url} API response {response.status_code}.")
 #endregion
 
-bot.run(PROD_TOKEN)
+bot.run(BOT_TOKEN)
 # Coded by https://github.com/Gitfoe
