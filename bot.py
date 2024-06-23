@@ -1,3 +1,17 @@
+# Copyright 2024 Julian Calvin Rill
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #region Python imports
 import os
 import io
@@ -1142,10 +1156,10 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
                     if user_id in values["users"]:
                         active_in_guilds += 1
                 thresholds = {99.5: "What an absolute gigachad.",
-                              95: "Chad performance.",
-                              90: "Not bad, not good.",
-                              80: "Nearing beta performance. Do better.",
-                              70: "Definitely not chad performance."}
+                              99: "Chad performance.",
+                              95: "Not bad, not good.",
+                              85: "Nearing beta performance. Do better.",
+                              80: "Certainly not chad performance."}
                 chad_level = "Full beta performance. Become chad." # Default value if lower than lowest threshold
                 for threshold, message in thresholds.items():
                     if percent_correct >= threshold:
@@ -1210,7 +1224,8 @@ class StatsCog(commands.GroupCog, name="stats", description="Gives various count
             # Sort by high score, then percent correct, then total counts
             sorted_server_stats = sorted(server_stats, key=lambda x: (x[1], x[3], x[2]), reverse=True)[:10]
             full_text = "\n".join(
-                f"**{i+1}. {escape_markdown(discord.utils.get(bot.guilds, id=guild_id).name)}**\nHighest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
+                f"**{i+1}. {escape_markdown(discord.utils.get(bot.guilds, id=guild_id).name)}**" +
+                f"Highest count: {highest_count}, total: {total_counts} ({percent_correct}% correct), current: {current_count}"
                 for i, (guild_id, highest_count, total_counts, percent_correct, current_count) in enumerate(sorted_server_stats)
             )
             embed = chadcounting_embed("Here you go, the best servers on ChadCounting")
