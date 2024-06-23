@@ -29,9 +29,9 @@ update_guild_data = False # Forces updating of newly added guild_data values aft
 
 # Initialize variables and load environment tables
 load_dotenv()
-BOT_TOKEN = os.getenv("DEV_TOKEN") # ChadCounting token (either PROD_TOKEN or DEV_TOKEN)
+BOT_TOKEN = os.getenv("PROD_TOKEN") # ChadCounting token (either PROD_TOKEN or DEV_TOKEN)
 guild_data = {} # Global variable for database
-bot_version = "1.0.3-indev"
+bot_version = "1.0.3"
 chadcounting_color = 0xCA93FF # Color of the embeds
 image_gigachad = "https://github.com/Gitfoe/ChadCounting/blob/main/gigachad.jpeg?raw=true"
 
